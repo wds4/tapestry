@@ -1,0 +1,18 @@
+[Unit]
+Description=Process pubkeys from queue by updating edges in Neo4j
+After=network.target neo4j.service
+
+[Service]
+Type=simple
+User=brainstorm
+EnvironmentFile=/etc/brainstorm.conf
+ExecStart=sudo /usr/local/lib/node_modules/brainstorm/src/pipeline/stream/processQueue.sh
+Restart=on-failure
+RestartSec=1
+# Set resource limits to prevent excessive resource usage
+CPUQuota=90%
+# Security measures
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm - Add New Customer</title>
+    <link rel="stylesheet" href="/css/search.css">
+    <link rel="shortcut icon" href="/img/brainstorm010.svg">
+    <style>
+        .search-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem 0;
+        }
+        
+        .search-header h1 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        
+        .search-description {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+        
+        .search-sections {
+            display: grid;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .search-sections {
+                grid-template-columns: 1fr;
+                gap: 2.5rem;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+        }
+        
+        .search-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .search-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .search-section-title {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .search-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        @media (min-width: 480px) {
+            .search-container {
+                flex-direction: row;
+                align-items: flex-end;
+            }
+        }
+        
+        .search-input-wrapper {
+            flex: 1;
+        }
+        
+        .search-button {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+        
+        .search-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .search-button:active {
+            transform: translateY(0);
+        }
+        
+        .help-text {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0;
+            font-style: italic;
+        }
+        
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border-left: 4px solid #28a745;
+        }
+        
+        .result-card.error {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .result-card.warning {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+        
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+        
+        .result-details {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .result-value {
+            color: #6c757d;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 767px) {
+            .search-header h1 {
+                font-size: 2rem;
+            }
+            
+            .search-section {
+                padding: 1rem;
+            }
+            
+            .coming-soon {
+                padding: 1.5rem;
+                margin-top: 2rem;
+            }
+            
+            .coming-soon h2 {
+                font-size: 1.5rem;
+            }
+        }
+
+        .profile-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .profile-link {
+        text-decoration: none;
+        color: #2c3e50;
+    }
+
+    .profile-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+
+    .profile-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        aspect-ratio: 1 / 1;
+    }
+
+    .profile-card {
+        display: flex;
+        align-items: center;
+        padding: 1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background: #fff;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        margin: 1rem 0;
+    }
+
+    .profile-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .profile-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .profile-handle {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    .profile-npub {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    .customer-status-card {
+        background: #e8f5e8;
+        border: 1px solid #4caf50;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+        text-align: center;
+    }
+
+    .status-active {
+        color: #4caf50;
+        font-weight: bold;
+    }
+
+    .status-inactive {
+        color: #ff9800;
+        font-weight: bold;
+    }
+    </style>
+    <script src="./components/header/header.js"></script>
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="search-header">
+                <h1>Add New Customer</h1>
+                <p class="search-description">Add a new customer to the system using their pubkey</p>
+            </div>
+            
+            <div class="search-sections">
+                <div class="search-section">
+                    <h3 class="search-section-title">👤 Find Profile by Npub or Pubkey</h3>
+                    <div class="search-container">
+                        <div class="search-input-wrapper">
+                            <input type="text" id="inputStringField" class="search-input" placeholder="Enter npub or 64-character hex pubkey">
+                        </div>
+                        <button id="findCustomerButton" class="search-button">Find Profile</button>
+                    </div>
+                    <p class="help-text">Enter the customer's npub or pubkey to add them with default settings (free tier, active status)</p>
+                </div>
+            </div>
+            
+            <div id="profileDisplay" class="search-results" style="display: none;">
+                <!-- Profile will be displayed here -->
+            </div>
+            
+            <div id="addCustomerSection" class="search-results" style="display: none;">
+                <button id="addCustomerButton" class="search-button">Add Customer</button>
+            </div>
+            
+            <div id="customerResult" class="search-results" style="display: none;">
+                <!-- Customer addition results will be displayed here -->
+            </div>
+        </div>
+        <!-- Include the footer component -->
+        <div id="footerContainer"></div>
+    </div>
+    <script>
+    // Function to check if user is already a customer
+    async function checkIfCustomer(pubkey) {
+        try {
+            const response = await fetch('/api/get-customers');
+            const result = await response.json();
+            
+            if (result.success && result.customers) {
+                // Find customer with matching pubkey
+                const existingCustomer = result.customers.find(customer => customer.pubkey === pubkey);
+                return existingCustomer || null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error checking customer status:', error);
+            return null;
+        }
+    }
+
+    // Function to display profile data from pubkey with customer status check
+    async function displayProfile(pubkey, npub) {
+        let profileData = null;
+        
+        // First, check if user is already a customer
+        const existingCustomer = await checkIfCustomer(pubkey);
+        
+        try {
+            const response = await fetch(`/api/get-kind0?pubkey=${pubkey}`);
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                // Parse the kind 0 event content
+                const event = result.data;
+                const content = JSON.parse(event.content);
+                
+                // Extract profile details
+                const picture = content.picture || '/img/default-avatar.png';
+                const name = content.name || 'Unknown';
+                const displayName = content.display_name || content.displayName || name;
+                
+                profileData = { picture, name, displayName };
+            }
+        } catch (error) {
+            console.error('Error getting profile data:', error);
+        }
+        
+        // Display profile (either with real data or generic)
+        const profileDisplay = document.getElementById('profileDisplay');
+        const addCustomerSection = document.getElementById('addCustomerSection');
+        
+        let profileHTML;
+        if (profileData) {
+            // Real profile data
+            profileHTML = `
+                <div class="profile-card">
+                    <a href="/profile.html?pubkey=${pubkey}" target="_blank" class="profile-link">
+                        <div class="profile-image">
+                            <img src="${profileData.picture}" alt="${profileData.displayName}" onerror="this.src='/img/default-avatar.png'">
+                        </div>
+                        <div class="profile-info">
+                            <h3 class="profile-name">${profileData.displayName}</h3>
+                            <p class="profile-handle">@${profileData.name}</p>
+                            <p class="profile-npub">${npub.substring(0, 8)}...${npub.substring(npub.length - 4)}</p>
+                        </div>
+                    </a>
+                </div>
+            `;
+        } else {
+            // Generic profile
+            profileHTML = `
+                <div class="profile-card">
+                    <a href="/profile.html?pubkey=${pubkey}" target="_blank" class="profile-link">
+                        <div class="profile-image">
+                            <img src="/img/default-avatar.png" alt="Unknown User">
+                        </div>
+                        <div class="profile-info">
+                            <h3 class="profile-name">Unknown User</h3>
+                            <p class="profile-handle">No profile data found</p>
+                            <p class="profile-npub">${npub.substring(0, 8)}...${npub.substring(npub.length - 4)}</p>
+                        </div>
+                    </a>
+                </div>
+            `;
+        }
+        
+        profileDisplay.innerHTML = profileHTML;
+        profileDisplay.style.display = 'block';
+        
+        // Handle customer status
+        if (existingCustomer) {
+            // User is already a customer - show management link instead of Add button
+            addCustomerSection.innerHTML = `
+                <div class="customer-status-card">
+                    <p><strong>✅ Already a Customer</strong></p>
+                    <p>Status: <span class="status-${existingCustomer.status}">${existingCustomer.status}</span></p>
+                    <p>Customer ID: ${existingCustomer.id}</p>
+                    <a href="/manage-customer.html?pubkey=${pubkey}" class="search-button" target="_blank">
+                        Manage Customer
+                    </a>
+                </div>
+            `;
+            addCustomerSection.style.display = 'block';
+        } else {
+            // User is not a customer - show Add Customer button
+            addCustomerSection.innerHTML = `
+                <button id="addCustomerButton" class="search-button">Add Customer</button>
+            `;
+            addCustomerSection.style.display = 'block';
+            
+            // Re-attach event listener for the new button
+            document.getElementById('addCustomerButton').addEventListener('click', handleAddCustomer);
+        }
+    }
+
+    // Function to display result message
+    function displayResult(result, isError = false) {
+        const resultContainer = document.getElementById('customerResult');
+        const cardClass = isError ? 'error-card' : 'success-card';
+        
+        let resultHTML = `<div class="${cardClass}">`;
+        
+        if (isError) {
+            resultHTML += `
+                <div class="result-title">❌ Error Adding Customer</div>
+                <p>${result.error}</p>
+            `;
+            if (result.customer) {
+                resultHTML += `
+                    <div class="result-details">
+                        <div class="result-item">
+                            <span class="result-label">Existing Customer:</span>
+                            <span class="result-value">${result.customer.name}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Status:</span>
+                            <span class="result-value">${result.customer.status}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Customer ID:</span>
+                            <span class="result-value">${result.customer.id}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+                resultHTML += `
+                    <div class="result-title">✅ Customer Added Successfully</div>
+                    <p>${result.message}</p>
+                    <div class="result-details">
+                        <div class="result-item">
+                            <span class="result-label">Customer Name:</span>
+                            <span class="result-value">${result.customer.name}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Customer ID:</span>
+                            <span class="result-value">${result.customer.id}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Status:</span>
+                            <span class="result-value">${result.customer.status}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Service Tier:</span>
+                            <span class="result-value">${result.customer.service_tier}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Pubkey:</span>
+                            <span class="result-value">${result.customer.pubkey}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Npub:</span>
+                            <span class="result-value">${result.customer.npub}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Directory:</span>
+                            <span class="result-value">${result.customer.directory}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            resultHTML += '</div>';
+            resultContainer.innerHTML = resultHTML;
+            resultContainer.style.display = 'block';
+        }
+
+        // Store validated data for later use
+        let validatedData = null;
+
+        // Find Profile button event listener
+        document.getElementById('findCustomerButton').addEventListener('click', async () => {
+            const inputStringField = document.getElementById('inputStringField');
+            const inputString = inputStringField.value.trim();
+
+            // Clear previous results
+            document.getElementById('customerResult').innerHTML = '';
+            document.getElementById('customerResult').style.display = 'none';
+            document.getElementById('profileDisplay').style.display = 'none';
+            document.getElementById('addCustomerSection').style.display = 'none';
+
+            // Validate inputString format
+            if (!inputString) {
+                alert('Please enter either a pubkey or npub');
+                return;
+            }
+
+            // Disable button during request
+            const button = document.getElementById('findCustomerButton');
+            const originalText = button.textContent;
+            button.textContent = 'Finding...';
+            button.disabled = true;
+
+            try {
+                // First validate the input using the validate-encoding API
+                const validateResponse = await fetch(`/api/validate-encoding?inputString=${encodeURIComponent(inputString)}`);
+                const validateResult = await validateResponse.json();
+                
+                if (!validateResponse.ok || !validateResult.success || !validateResult.data.valid) {
+                    alert('Please enter a valid npub or pubkey');
+                    return;
+                }
+                
+                // Extract pubkey and npub from validation result
+                const pubkey = validateResult.data.encodings.pubkey;
+                const npub = validateResult.data.encodings.npub;
+                
+                // Store for later use by Add Customer button
+                validatedData = { pubkey, npub };
+                
+                // Display the profile only (no customer addition yet)
+                await displayProfile(pubkey, npub);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while finding the profile');
+            } finally {
+                // Re-enable button
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        });
+
+        // Handle Add Customer button click
+        async function handleAddCustomer() {
+            if (!validatedData) {
+                alert('Please find a profile first');
+                return;
+            }
+
+            // Disable button during request
+            const button = document.getElementById('addCustomerButton');
+            const originalText = button.textContent;
+            button.textContent = 'Adding...';
+            button.disabled = true;
+
+            try {
+                // Add the customer using the validated pubkey
+                const response = await fetch('/api/add-new-customer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ pubkey: validatedData.pubkey })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    displayResult(result);
+                    document.getElementById('inputStringField').value = ''; // Clear input on success
+                    document.getElementById('addCustomerSection').style.display = 'none'; // Hide add button
+                    document.getElementById('profileDisplay').style.display = 'none'; // Hide profile
+                    validatedData = null; // Clear stored data
+                } else {
+                    displayResult(result, true);
+                }
+                
+            } catch (error) {
+                console.error('Error adding customer:', error);
+                displayResult({
+                    success: false,
+                    message: 'Network error occurred while adding customer'
+                }, true);
+            } finally {
+                // Re-enable button
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // Allow Enter key to trigger add customer
+        document.getElementById('inputStringField').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('findCustomerButton').click();
+            }
+        });
+    </script>
+</body>
+</html>

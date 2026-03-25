@@ -1,0 +1,503 @@
+#!/bin/bash
+
+# Structured Logging Utility Library
+# Provides consistent, parseable logging and event emission across all Brainstorm scripts
+#
+# Usage:
+#   source /path/to/structuredLogging.sh
+#   log_structured "INFO" "Script started" "script_name=processCustomer"
+#   emit_task_event "TASK_START" "processCustomer" "$CUSTOMER_PUBKEY" '{"customerId":"'$CUSTOMER_ID'"}''
+#
+# Configuration Options:
+#   BRAINSTORM_STRUCTURED_LOGGING=true|false    # Enable/disable all structured logging
+#   BRAINSTORM_HUMAN_LOGS=true|false           # Enable/disable human-readable structured.log
+#   BRAINSTORM_HUMAN_LOG_VERBOSITY=MINIMAL|NORMAL|VERBOSE  # Control human log verbosity
+#   BRAINSTORM_LOG_LEVEL=ERROR|WARN|INFO|DEBUG  # Minimum log level to output
+#   BRAINSTORM_EVENTS_MAX_SIZE=10000            # Max lines in events.jsonl before rotation
+#
+# Verbosity Levels:
+#   MINIMAL: Only errors and critical task events (TASK_START/END/ERROR)
+#   NORMAL:  Most events except verbose PROGRESS events (default)
+#   VERBOSE: All events including detailed PROGRESS events
+
+# Configuration
+BRAINSTORM_LOG_LEVEL=${BRAINSTORM_LOG_LEVEL:-"INFO"}
+BRAINSTORM_STRUCTURED_LOGGING=${BRAINSTORM_STRUCTURED_LOGGING:-"true"}
+BRAINSTORM_HUMAN_LOGS=${BRAINSTORM_HUMAN_LOGS:-"true"}
+BRAINSTORM_HUMAN_LOG_VERBOSITY=${BRAINSTORM_HUMAN_LOG_VERBOSITY:-"NORMAL"}
+BRAINSTORM_EVENTS_MAX_SIZE=${BRAINSTORM_EVENTS_MAX_SIZE:-10000}
+
+# Ensure required directories exist
+ensure_logging_dirs() {
+    local log_dir="${BRAINSTORM_LOG_DIR:-/var/log/brainstorm}"
+    local task_queue_dir="${log_dir}/taskQueue"
+    
+    mkdir -p "$task_queue_dir"
+    
+    # Set global variables for event files
+    EVENTS_FILE="${task_queue_dir}/events.jsonl"
+    STRUCTURED_LOG_FILE="${task_queue_dir}/structured.log"
+    
+    # Ensure log files exist and have correct ownership
+    # This prevents permission issues when different processes (root vs brainstorm) create files
+    touch "$EVENTS_FILE" "$STRUCTURED_LOG_FILE" 2>/dev/null || true
+    
+    # Fix ownership if we have sudo access (for systemd processes running as root)
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo chown brainstorm:brainstorm "$EVENTS_FILE" "$STRUCTURED_LOG_FILE" 2>/dev/null || true
+    fi
+}
+
+# Initialize directories and variables when script is sourced
+ensure_logging_dirs
+
+# Get ISO timestamp
+get_iso_timestamp() {
+    date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z'
+}
+
+# Log level checking
+should_log_level() {
+    local level="$1"
+    
+    case "$BRAINSTORM_LOG_LEVEL" in
+        "ERROR") [[ "$level" == "ERROR" ]] && return 0 ;;
+        "WARN") [[ "$level" =~ ^(ERROR|WARN)$ ]] && return 0 ;;
+        "INFO") [[ "$level" =~ ^(ERROR|WARN|INFO)$ ]] && return 0 ;;
+        "DEBUG") return 0 ;;
+        *) [[ "$level" =~ ^(ERROR|WARN|INFO)$ ]] && return 0 ;;
+    esac
+    
+    return 1
+}
+
+# Check if human logs should be written based on verbosity and event type
+# Usage: should_write_human_log "EVENT_TYPE" "LOG_LEVEL"
+should_write_human_log() {
+    local event_type="$1"
+    local log_level="${2:-INFO}"
+    
+    # If human logs are disabled, never write
+    if [[ "$BRAINSTORM_HUMAN_LOGS" != "true" ]]; then
+        return 1
+    fi
+    
+    # Check verbosity level
+    case "$BRAINSTORM_HUMAN_LOG_VERBOSITY" in
+        "MINIMAL")
+            # Only log errors and critical task events
+            [[ "$log_level" == "ERROR" || "$event_type" =~ ^(TASK_START|TASK_END|TASK_ERROR)$ ]] && return 0
+            ;;
+        "NORMAL")
+            # Log most events but skip some verbose progress events
+            [[ "$event_type" != "PROGRESS" || "$log_level" =~ ^(WARN|ERROR)$ ]] && return 0
+            ;;
+        "VERBOSE")
+            # Log everything
+            return 0
+            ;;
+        *)
+            # Default to NORMAL behavior
+            [[ "$event_type" != "PROGRESS" || "$log_level" =~ ^(WARN|ERROR)$ ]] && return 0
+            ;;
+    esac
+    
+    return 1
+}
+
+# Structured logging function
+# Usage: log_structured "LEVEL" "MESSAGE" "key1=value1 key2=value2"
+log_structured() {
+    local level="$1"
+    local message="$2"
+    local metadata="${3:-}"
+    local timestamp=$(get_iso_timestamp)
+    local script_name="${BASH_SOURCE[2]##*/}"
+    local line_number="${BASH_LINENO[1]}"
+    
+    # Ensure directories exist
+    ensure_logging_dirs
+    
+    # Check if we should log this level
+    if ! should_log_level "$level"; then
+        return 0
+    fi
+    
+    # Create structured log entry
+    local structured_entry="[$timestamp] [$level] [$script_name:$line_number] $message"
+    if [[ -n "$metadata" ]]; then
+        structured_entry="$structured_entry [$metadata]"
+    fi
+    
+    # Output to console
+    echo "$structured_entry"
+    
+    # Write to structured log file if both structured logging and human logs are enabled
+    if [[ "$BRAINSTORM_STRUCTURED_LOGGING" == "true" && "$BRAINSTORM_HUMAN_LOGS" == "true" ]]; then
+        echo "$structured_entry" >> "$STRUCTURED_LOG_FILE"
+    fi
+}
+
+# Convenience functions for different log levels
+log_debug() { log_structured "DEBUG" "$1" "$2"; }
+log_info() { log_structured "INFO" "$1" "$2"; }
+log_warn() { log_structured "WARN" "$1" "$2"; }
+log_error() { log_structured "ERROR" "$1" "$2"; }
+
+# Emit structured task event
+# Usage: emit_task_event "EVENT_TYPE" "TASK_NAME" "TARGET" '{"key":"value"}' ["PARENT_TASK_NAME"]
+emit_task_event() {
+    local event_type="$1"
+    local task_name="$2"
+    local target="${3:-}"
+    local metadata="$4"
+    local parent_task_name="${5:-}"
+    # Default to empty object if no metadata provided
+    [[ -z "$metadata" ]] && metadata='{}'
+    local timestamp=$(get_iso_timestamp)
+    # Get script name from call stack - try different levels
+    local script_name=""
+    for i in {1..5}; do
+        if [[ -n "${BASH_SOURCE[$i]}" ]]; then
+            script_name="${BASH_SOURCE[$i]##*/}"
+            break
+        fi
+    done
+    [[ -z "$script_name" ]] && script_name="unknown"
+    
+    local pid=$$
+    
+    # Ensure directories exist
+    ensure_logging_dirs
+    
+    # Skip if structured logging is disabled
+    if [[ "$BRAINSTORM_STRUCTURED_LOGGING" != "true" ]]; then
+        return 0
+    fi
+
+    # Ensure metadata is valid JSON, default to empty object if invalid
+    # Also compact metadata to single line for proper JSONL formatting
+    if command -v jq >/dev/null 2>&1; then
+        if ! echo "$metadata" | jq empty 2>/dev/null; then
+            metadata='{}'
+        else
+            # Compact metadata JSON to single line for JSONL compatibility
+            metadata=$(echo "$metadata" | jq -c .)
+        fi
+    else
+        # Fallback: basic JSON validation and compacting without jq
+        if [[ "$metadata" =~ ^[[:space:]]*\{.*\}[[:space:]]*$ ]]; then
+            # Remove newlines and extra spaces for basic compacting
+            metadata=$(echo "$metadata" | tr -d '\n' | sed 's/[[:space:]]\+/ /g')
+        else
+            metadata='{}'
+        fi
+    fi
+    
+    # Enhance metadata with system context for critical events
+    local enhanced_metadata="$metadata"
+    if [[ "$event_type" =~ ^(TASK_START|TASK_END|TASK_ERROR|CHILD_TASK_START|CHILD_TASK_END|CHILD_TASK_ERROR)$ ]]; then
+        enhanced_metadata=$(enhance_metadata_with_system_context "$metadata")
+    fi
+    
+    # Add parent task context if provided
+    if [[ -n "$parent_task_name" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            enhanced_metadata=$(echo "$enhanced_metadata" | jq -c '. + {"parentTask": "'$parent_task_name'"}')
+        else
+            # Fallback: simple string replacement for parent task
+            enhanced_metadata=$(echo "$enhanced_metadata" | sed 's/}$/,"parentTask":"'$parent_task_name'"}/')
+        fi
+    fi
+    
+    # Add task duration expectations for Health Monitor analysis
+    if [[ "$event_type" == "TASK_START" ]]; then
+        local expected_duration=$(get_task_expected_duration "$task_name")
+        if [[ -n "$expected_duration" ]]; then
+            if command -v jq >/dev/null 2>&1; then
+                enhanced_metadata=$(echo "$enhanced_metadata" | jq -c '. + {"expectedDurationMinutes": '$expected_duration'}')
+            else
+                # Fallback: simple string replacement for expected duration
+                enhanced_metadata=$(echo "$enhanced_metadata" | sed 's/}$/,"expectedDurationMinutes":'$expected_duration'}/')
+            fi
+        fi
+    fi
+    
+    # Create event JSON as single line for JSONL format
+    local event_json="{\"timestamp\":\"$timestamp\",\"eventType\":\"$event_type\",\"taskName\":\"$task_name\",\"target\":\"$target\",\"metadata\":$enhanced_metadata,\"scriptName\":\"$script_name\",\"pid\":$pid}"
+    
+    # Append to events file
+    echo "$event_json" >> "$EVENTS_FILE"
+    
+    # Rotate events file if it gets too large
+    rotate_events_file_if_needed
+    
+    # Also log as structured message for human readability (respecting verbosity settings)
+    if should_write_human_log "$event_type" "INFO"; then
+        log_info "Task event: $event_type $task_name" "target=$target pid=$pid"
+    fi
+}
+
+# Rotate events file if it exceeds max size
+rotate_events_file_if_needed() {
+    if [[ ! -f "$EVENTS_FILE" ]]; then
+        return 0
+    fi
+    
+    local line_count=$(wc -l < "$EVENTS_FILE" 2>/dev/null || echo "0")
+    
+    if [[ "$line_count" -gt "$BRAINSTORM_EVENTS_MAX_SIZE" ]]; then
+        log_info "Rotating events file" "current_lines=$line_count max_lines=$BRAINSTORM_EVENTS_MAX_SIZE"
+        
+        # Preserve critical data before rotation
+        local preserver_script
+        if [[ -n "$BRAINSTORM_MODULE_BASE_DIR" ]]; then
+            preserver_script="${BRAINSTORM_MODULE_BASE_DIR}/src/utils/criticalDataPreserver.sh"
+        else
+            # Fallback: try to find the script relative to this script's location
+            local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            preserver_script="${script_dir}/criticalDataPreserver.sh"
+        fi
+        
+        if [[ -f "$preserver_script" ]]; then
+            log_info "Preserving critical monitoring data before rotation" "script_path=$preserver_script"
+            bash "$preserver_script" 2>/dev/null || log_warn "Critical data preservation failed"
+        else
+            log_warn "Critical data preservation script not found" "expected_path=$preserver_script"
+        fi
+        
+        # Enhanced rotation: preserve high-value events + keep recent events
+        local temp_file="${EVENTS_FILE}.rotation_tmp"
+        local keep_lines=$((BRAINSTORM_EVENTS_MAX_SIZE / 2))
+        
+        # Extract and preserve critical events that should never be lost
+        grep -E '"taskName":"(neo4jCrashPatternDetector|neo4jStabilityMonitor)".*"eventType":"(HEALTH_ALERT|TASK_ERROR)"' "$EVENTS_FILE" > "${temp_file}.critical" 2>/dev/null || touch "${temp_file}.critical"
+        
+        # Keep most recent events
+        tail -n "$keep_lines" "$EVENTS_FILE" > "${temp_file}.recent"
+        
+        # Combine critical events + recent events, remove duplicates, sort by timestamp
+        cat "${temp_file}.critical" "${temp_file}.recent" | \
+        jq -s 'sort_by(.timestamp) | unique_by(.timestamp + .taskName + .eventType)' | \
+        jq -r '.[]' > "$temp_file" 2>/dev/null || {
+            # Fallback if jq fails: just use recent events
+            cat "${temp_file}.recent" > "$temp_file"
+        }
+        
+        # Replace original file
+        mv "$temp_file" "$EVENTS_FILE"
+        
+        # Cleanup temp files
+        rm -f "${temp_file}.critical" "${temp_file}.recent"
+        
+        local final_lines=$(wc -l < "$EVENTS_FILE" 2>/dev/null || echo "0")
+        log_info "Events file rotated with critical data preservation" "kept_lines=$final_lines original_lines=$line_count"
+    fi
+}
+
+# Enhance metadata with system resource context for Health Monitor analysis
+# Usage: enhanced_metadata=$(enhance_metadata_with_system_context "$original_metadata")
+enhance_metadata_with_system_context() {
+    local original_metadata="$1"
+    
+    # Collect system resource information efficiently
+    local load_avg=""
+    local memory_usage=""
+    local disk_usage=""
+    local neo4j_status=""
+    local parent_pid=""
+    
+    # Get system load (1-minute average)
+    if command -v uptime >/dev/null 2>&1; then
+        load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk -F',' '{print $1}' | xargs)
+    fi
+    
+    # Get memory usage percentage
+    if command -v free >/dev/null 2>&1; then
+        memory_usage=$(free | awk 'NR==2{printf "%.1f", $3*100/$2}')
+    elif command -v vm_stat >/dev/null 2>&1; then
+        # macOS alternative
+        memory_usage=$(vm_stat | awk '/Pages free:/{free=$3} /Pages active:/{active=$3} /Pages inactive:/{inactive=$3} /Pages speculative:/{spec=$3} /Pages wired down:/{wired=$4} END{total=free+active+inactive+spec+wired; used=active+inactive+wired; printf "%.1f", used*100/total}')
+    fi
+    
+    # Get disk usage for root filesystem
+    if command -v df >/dev/null 2>&1; then
+        disk_usage=$(df / | awk 'NR==2{print $5}' | sed 's/%//')
+    fi
+    
+    # Check Neo4j status (basic connectivity test)
+    if command -v curl >/dev/null 2>&1; then
+        if curl -s -f "http://localhost:7474" >/dev/null 2>&1; then
+            neo4j_status="accessible"
+        else
+            neo4j_status="inaccessible"
+        fi
+    fi
+    
+    # Get parent process PID for orchestration tracking
+    parent_pid=$(ps -o ppid= -p $$ 2>/dev/null | xargs)
+    
+    # Create system context object
+    local system_context=$(cat <<EOF
+{
+    "loadAverage": "$load_avg",
+    "memoryUsagePercent": "$memory_usage",
+    "diskUsagePercent": "$disk_usage",
+    "neo4jStatus": "$neo4j_status",
+    "parentPid": "$parent_pid"
+}
+EOF
+)
+    
+    # Merge original metadata with system context
+    local enhanced_metadata
+    if command -v jq >/dev/null 2>&1; then
+        if [[ "$original_metadata" == "{}" ]]; then
+            # If original metadata is empty, just add system context
+            enhanced_metadata=$(echo "$system_context" | jq -c '. + {"systemContext": .} | del(.loadAverage, .memoryUsagePercent, .diskUsagePercent, .neo4jStatus, .parentPid)')
+        else
+            # Merge original metadata with system context
+            enhanced_metadata=$(echo "$original_metadata" "$system_context" | jq -c -s '.[0] + {"systemContext": .[1]}')
+        fi
+    else
+        # Fallback: simple string concatenation for system context
+        if [[ "$original_metadata" == "{}" ]]; then
+            enhanced_metadata='{"systemContext":'"$system_context"'}'
+        else
+            # Remove closing brace, add system context, add closing brace
+            enhanced_metadata=$(echo "$original_metadata" | sed 's/}$/,"systemContext":'"$(echo "$system_context" | sed 's/"/\\"/g')"'}/')
+        fi
+    fi
+    
+    echo "$enhanced_metadata"
+}
+
+# Get expected duration for a task (in minutes) for Health Monitor analysis
+# Usage: expected_duration=$(get_task_expected_duration "taskName")
+get_task_expected_duration() {
+    local task_name="$1"
+    
+    # Define expected durations based on historical data and task complexity
+    # These values help the Health Monitor detect when tasks are taking unusually long
+    case "$task_name" in
+        # Quick tasks (< 5 minutes)
+        "neo4jConstraintsAndIndexes") echo "3" ;;
+        "exportOwnerKind30382") echo "2" ;;
+        "exportWhitelist") echo "1" ;;
+        
+        # Medium tasks (5-30 minutes)
+        "callBatchTransferIfNeeded") echo "10" ;;
+        "calculateOwnerHops") echo "15" ;;
+        "calculateOwnerPageRank") echo "20" ;;
+        "calculateOwnerGrapeRank") echo "25" ;;
+        "calculateReportScores") echo "15" ;;
+        "processOwnerFollowsMutesReports") echo "20" ;;
+        "queryMissingNpubs") echo "10" ;;
+        "generateNpubs") echo "5" ;;
+        "updateNpubsInNeo4j") echo "15" ;;
+        
+        # Long tasks (30+ minutes)
+        "syncWoT") echo "45" ;;
+        "reconciliation") echo "60" ;;
+        "processNpubsUpToMaxNumBlocks") echo "90" ;;
+        "processAllActiveCustomers") echo "120" ;;
+        "calculatePersonalizedPageRank") echo "30" ;;
+        "calculatePersonalizedGrapeRank") echo "45" ;;
+        
+        # Orchestrator tasks (variable, but long)
+        "processAllTasks") echo "300" ;;  # 5 hours for full pipeline
+        "npubManager") echo "60" ;;
+        
+        # Default for unknown tasks
+        *) echo "" ;;  # No expectation for unknown tasks
+    esac
+}
+
+# Task timing helpers
+start_task_timer() {
+    local task_name="$1"
+    local target="${2:-}"
+    local metadata="${3:-}"
+    
+    # Ensure metadata is not empty or null
+    if [[ -z "$metadata" ]]; then
+        metadata="{}"
+    fi
+    
+    # Store start time in a temporary file
+    local timer_file="/tmp/brainstorm_task_timer_${task_name}_${target//\//_}_$$"
+    get_iso_timestamp > "$timer_file"
+    
+    # Emit start event
+    emit_task_event "TASK_START" "$task_name" "$target" "$metadata"
+    
+    # Return timer file path for end_task_timer
+    echo "$timer_file"
+}
+
+end_task_timer() {
+    local task_name="$1"
+    local target="${2:-}"
+    local exit_code="${3:-0}"
+    local timer_file="$4"
+    local additional_metadata="${5:-}"
+    
+    # Ensure additional_metadata is not empty or null
+    if [[ -z "$additional_metadata" ]]; then
+        additional_metadata="{}"
+    fi
+    
+    local end_time=$(get_iso_timestamp)
+    local start_time=""
+    local duration_seconds=""
+    
+    # Read start time if timer file exists
+    if [[ -f "$timer_file" ]]; then
+        start_time=$(cat "$timer_file")
+        rm -f "$timer_file"
+        
+        # Calculate duration (basic implementation)
+        local start_epoch=$(date -d "$start_time" +%s 2>/dev/null || echo "0")
+        local end_epoch=$(date -d "$end_time" +%s 2>/dev/null || echo "0")
+        duration_seconds=$((end_epoch - start_epoch))
+    fi
+    
+    # Create metadata with timing and exit code
+    local metadata=$(cat <<EOF
+{"exitCode":$exit_code,"startTime":"$start_time","endTime":"$end_time","durationSeconds":$duration_seconds,"additional":$additional_metadata}
+EOF
+)
+    
+    # Emit completion event (standardized to TASK_END)
+    local event_type="TASK_END"
+    if [[ "$exit_code" != "0" ]]; then
+        event_type="TASK_ERROR"
+    fi
+    
+    emit_task_event "$event_type" "$task_name" "$target" "$metadata"
+}
+
+# Legacy compatibility function
+# This allows existing scripts to gradually adopt structured logging
+legacy_log_with_event() {
+    local legacy_message="$1"
+    local event_type="${2:-}"
+    local task_name="${3:-}"
+    local target="${4:-}"
+    
+    # Output legacy format for backward compatibility
+    echo "$legacy_message"
+    
+    # Also emit structured event if parameters provided
+    if [[ -n "$event_type" && -n "$task_name" ]]; then
+        emit_task_event "$event_type" "$task_name" "$target" '{}'
+    fi
+}
+
+# Initialize logging on source
+ensure_logging_dirs
+
+# Export functions for use in other scripts
+export -f log_structured log_debug log_info log_warn log_error
+export -f emit_task_event start_task_timer end_task_timer
+export -f legacy_log_with_event ensure_logging_dirs enhance_metadata_with_system_context get_task_expected_duration

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j Performance Metrics - Brainstorm</title>
+    <link rel="stylesheet" href="../css/neo4j-performance-metrics.css">
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+    
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="dashboard-container">
+            <header>
+                <h1>🔍 Neo4j Performance Metrics</h1>
+                <p>Comprehensive Neo4j stability monitoring and crash pattern detection</p>
+            </header>
+            
+            <div class="refresh-controls">
+                <div class="auto-refresh">
+                    <label>
+                        <input type="checkbox" id="autoRefresh" checked> Auto-refresh (30s)
+                    </label>
+                    <button class="btn btn-primary" onclick="refreshDashboard()">🔄 Refresh Now</button>
+                </div>
+                <div>
+                    <span id="lastUpdated">Last updated: Never</span>
+                </div>
+            </div>
+            
+            <!-- Metric View Selector -->
+            <div class="metric-selector">
+                <h3>📊 Choose Memory Metrics to Display</h3>
+                <div class="metric-buttons">
+                    <button class="metric-btn active" data-view="overview" onclick="switchMetricView('overview')">
+                        🏠 Overview
+                    </button>
+                    <button class="metric-btn" data-view="heap" onclick="switchMetricView('heap')">
+                        🧠 Heap Memory
+                    </button>
+                    <button class="metric-btn" data-view="metaspace" onclick="switchMetricView('metaspace')">
+                        🔧 Metaspace
+                    </button>
+                    <button class="metric-btn" data-view="compressed" onclick="switchMetricView('compressed')">
+                        ⚠️ Compressed Classes
+                    </button>
+                    <button class="metric-btn" data-view="survivor" onclick="switchMetricView('survivor')">
+                        🔄 Survivor Spaces
+                    </button>
+                    <button class="metric-btn" data-view="gc" onclick="switchMetricView('gc')">
+                        🗑️ Garbage Collection
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metric Explanation Panel -->
+            <div class="metric-explanation" id="metricExplanation">
+                <div class="explanation-content" id="explanationContent">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Heap Usage Time Series -->
+            <div class="health-card">
+                <div class="card-header">
+                    <h3 class="card-title">📈 Memory Metrics Over Time (G1GC)</h3>
+                    <select id="timeRangeSelector" onchange="updateHeapChart()" style="margin-left: 10px;">
+                        <option value="168">Last 7 days</option>
+                        <option value="24">Last 24 hours</option>
+                        <option value="6">Last 6 hours</option>
+                        <option value="1">Last hour</option>
+                    </select>
+                    <div class="data-source-indicator" id="dataSourceIndicator" style="font-size: 0.8em; color: #666; margin-top: 4px;"></div>
+                </div>
+                </div>
+                <div class="chart-container" style="height: 500px;">
+                    <canvas id="heapChart"></canvas>
+                </div>
+                <div class="g1gc-info" style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 0.9em;">
+                    <strong>G1GC Note:</strong> This Neo4j instance uses G1 Garbage Collector. "G1GC Survivor Regions %" shows total survivor utilization across all regions. 
+                    Individual S0/S1 spaces don't apply to G1GC - it uses dynamic region allocation instead.
+                </div>
+            </div>
+
+            <!-- Task Timeline Legend -->
+            <div class="timeline-legend-panel">
+                <h4>🔄 Database-Intensive Task Timeline</h4>
+                <div class="timeline-controls">
+                    <span class="timeline-legend">
+                        <span class="legend-item"><span class="legend-color" style="background: #ef4444;"></span> Orchestrator</span>
+                        <span class="legend-item"><span class="legend-color" style="background: #3b82f6;"></span> Graph Calc</span>
+                        <span class="legend-item"><span class="legend-color" style="background: #8b5cf6;"></span> Ranking</span>
+                        <span class="legend-item"><span class="legend-color" style="background: #f59e0b;"></span> Monitoring</span>
+                    </span>
+                    <div class="timeline-status" id="timelineStatus">Loading task timeline...</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Class Loading Metrics Card -->
+                <div class="health-card" id="classLoadingCard">
+                    <div class="card-header">
+                        <h3 class="card-title">📦 Class Loading</h3>
+                        <span class="status-badge" id="classLoadingStatus">Loading...</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="metric-row">
+                            <div class="metric">
+                                <span class="metric-label">Class Loaders:</span>
+                                <span class="metric-value" id="classLoaderCount">-</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Loaded Classes:</span>
+                                <span class="metric-value" id="loadedClassCount">-</span>
+                            </div>
+                        </div>
+                        <div class="metric-row">
+                            <div class="metric">
+                                <span class="metric-label">Unloaded Classes:</span>
+                                <span class="metric-value" id="unloadedClassCount">-</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Class Load Time:</span>
+                                <span class="metric-value" id="classLoadTime">-</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Instance Size:</span>
+                                <span class="metric-value" id="instanceSize">-</span>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">Class Loading Overhead</div>
+                            <div class="progress-bar">
+                                <div class="progress" id="classLoadingOverhead" style="width: 0%"></div>
+                            </div>
+                            <span class="progress-value" id="classLoadingOverheadValue">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- JVM Internal Metrics Card -->
+                <div class="health-card" id="jvmMetricsCard">
+                    <div class="card-header">
+                        <h3 class="card-title">⚙️ JVM Internals</h3>
+                        <span class="status-badge" id="jvmMetricsStatus">Loading...</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="metric-row">
+                            <div class="metric">
+                                <span class="metric-label">Thread Count:</span>
+                                <span class="metric-value" id="threadCount">-</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Peak Threads:</span>
+                                <span class="metric-value" id="peakThreadCount">-</span>
+                            </div>
+                        </div>
+                        <div class="metric-row">
+                            <div class="metric">
+                                <span class="metric-label">Safepoint Time (ms):</span>
+                                <span class="metric-value" id="safepointTime">-</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Safepoint Sync Time (ms):</span>
+                                <span class="metric-value" id="safepointSyncTime">-</span>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">Safepoint Overhead</div>
+                            <div class="progress-bar">
+                                <div class="progress" id="safepointOverhead" style="width: 0%"></div>
+                            </div>
+                            <span class="progress-value" id="safepointOverheadValue">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Service Status Card -->
+                <div class="health-card" id="serviceStatusCard">
+                    <div class="card-header">
+                        <h3 class="card-title">🚀 Service Status</h3>
+                        <span class="status-badge" id="serviceStatus">Loading...</span>
+                    </div>
+                    <div id="serviceMetrics">
+                        <div class="metric-row">
+                            <span class="metric-label">Process ID:</span>
+                            <span class="metric-value" id="neo4jPid">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Memory Usage:</span>
+                            <span class="metric-value" id="memoryUsage">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Connection Test:</span>
+                            <span class="metric-value" id="connectionTest">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Response Time:</span>
+                            <span class="metric-value" id="responseTime">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Heap Health Card -->
+                <div class="health-card" id="heapHealthCard">
+                    <div class="card-header">
+                        <h3 class="card-title">🧠 Heap Health</h3>
+                        <span class="status-badge" id="heapStatus">Loading...</span>
+                    </div>
+                    <div id="heapMetrics">
+                        <div class="metric-row">
+                            <span class="metric-label">Heap Utilization:</span>
+                            <span class="metric-value" id="heapUtilization">-</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="heapProgressBar" style="width: 0%"></div>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Used / Total:</span>
+                            <span class="metric-value" id="heapUsedTotal">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">GC Overhead:</span>
+                            <span class="metric-value" id="gcOverhead">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Full GC Count:</span>
+                            <span class="metric-value" id="fullGcCount">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Index Health Card -->
+                <div class="health-card" id="indexHealthCard">
+                    <div class="card-header">
+                        <h3 class="card-title">📊 Index Health</h3>
+                        <span class="status-badge" id="indexStatus">Loading...</span>
+                    </div>
+                    <div id="indexMetrics">
+                        <div class="metric-row">
+                            <span class="metric-label">Total Indexes:</span>
+                            <span class="metric-value" id="totalIndexes">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Failed Indexes:</span>
+                            <span class="metric-value" id="failedIndexes">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Constraints:</span>
+                            <span class="metric-value" id="totalConstraints">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Query Timeout:</span>
+                            <span class="metric-value" id="queryTimeout">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Crash Patterns Card -->
+                <div class="health-card" id="crashPatternsCard">
+                    <div class="card-header">
+                        <h3 class="card-title">⚠️ Crash Patterns</h3>
+                        <span class="status-badge" id="crashPatternStatus">Loading...</span>
+                    </div>
+                    <div id="crashPatternMetrics">
+                        <div class="metric-row">
+                            <span class="metric-label">Heap Space OOM:</span>
+                            <span class="metric-value" id="heapSpaceOom">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">GC Overhead OOM:</span>
+                            <span class="metric-value" id="gcOverheadOom">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Metaspace OOM:</span>
+                            <span class="metric-value" id="metaspaceOom">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Native Thread OOM:</span>
+                            <span class="metric-value" id="nativeThreadOom">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">APOC Stalling:</span>
+                            <span class="metric-value" id="apocStalling">-</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Long Transactions:</span>
+                            <span class="metric-value" id="longTransactions">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Alerts Section -->
+            <div class="health-card">
+                <div class="card-header">
+                    <h3 class="card-title">🚨 Recent Health Alerts</h3>
+                    <button class="btn btn-secondary" onclick="clearAlerts()">Clear Alerts</button>
+                </div>
+                <div class="alert-list" id="alertsList">
+                    <p>Loading alerts...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include the footer component -->
+    <div id="footerContainer"></div>
+
+    <script src="/libs/chart.js/chart.umd.js"></script>
+    <script src="/libs/chartjs-adapter-date-fns/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/js/neo4j-performance-metrics.js"></script>
+    <script src="/components/header/header.js"></script>
+    <script src="/components/footer/footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+#!/usr/bin/env node
+/**
+ * createReconciliationQueue.js
+ * 
+ * This script creates a queue of pubkeys that need to be reconciled between
+ * strfry and Neo4j. It compares the kind3EventId (and other event types) in Neo4j with the latest
+ * events in strfry to identify pubkeys that need updating.
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const { promisify } = require('util');
+const exec = promisify(require('child_process').exec);
+const mkdir = promisify(fs.mkdir);
+const writeFile = promisify(fs.writeFile);
+
+// Configuration
+const config = {
+  queueDir: '/var/lib/brainstorm/pipeline/reconcile/queue',
+  tempDir: '/var/lib/brainstorm/pipeline/reconcile/temp',
+  batchSize: 1000, // Number of pubkeys to process in each batch
+  neo4jUri: process.env.NEO4J_URI || "bolt://localhost:7687",
+  neo4jUser: process.env.NEO4J_USER || "neo4j",
+  neo4jPassword: process.env.NEO4J_PASSWORD || "neo4jneo4j"
+};
+
+// Event kinds to process
+const eventKinds = [
+  { kind: 3, relationship: 'FOLLOWS' },
+  { kind: 10000, relationship: 'MUTES' },
+  { kind: 1984, relationship: 'REPORTS' }
+];
+
+// Ensure directories exist
+async function ensureDirectories() {
+  try {
+    await mkdir(config.queueDir, { recursive: true });
+    await mkdir(config.tempDir, { recursive: true });
+  } catch (error) {
+    console.error(`Error creating directories: ${error.message}`);
+    throw error;
+  }
+}
+
+
+// Process pubkeys in batches
+async function processPubkeys(pubkeys) {
+  console.log(`${new Date().toISOString()}: Processing ${pubkeys.length} pubkeys in batches of ${config.batchSize}`);
+  
+  for (let i = 0; i < pubkeys.length; i += config.batchSize) {
+    const batch = pubkeys.slice(i, i + config.batchSize);
+    console.log(`${new Date().toISOString()}: Processing batch ${Math.floor(i/config.batchSize) + 1}/${Math.ceil(pubkeys.length/config.batchSize)}`);
+    
+    await processBatch(batch);
+  }
+}
+
+// Process a batch of pubkeys
+async function processBatch(pubkeys) {
+  try {
+    // Create a temporary file with the pubkeys
+    const pubkeysFile = path.join(config.tempDir, `pubkeys_${Date.now()}.txt`);
+    await writeFile(pubkeysFile, pubkeys.join('\n'));
+    
+    // Process each event kind
+    for (const eventType of eventKinds) {
+      await processEventKind(pubkeysFile, eventType.kind, eventType.relationship);
+    }
+    
+    // Clean up
+    fs.unlinkSync(pubkeysFile);
+  } catch (error) {
+    console.error(`${new Date().toISOString()}: Error processing batch: ${error.message}`);
+    throw error;
+  }
+}
+
+// Process a specific event kind for the batch of pubkeys
+async function processEventKind(pubkeysFile, eventKind, relationshipType) {
+  try {
+    console.log(`${new Date().toISOString()}: Processing kind ${eventKind} events (${relationshipType}) for batch...`);
+    
+    // Read pubkeys from file directly in JavaScript
+    const pubkeyList = fs.readFileSync(pubkeysFile, 'utf8').split('\n').filter(Boolean);
+    
+    if (pubkeyList.length === 0) {
+      console.log(`${new Date().toISOString()}: No pubkeys found in batch file, skipping kind ${eventKind}`);
+      return;
+    }
+    
+    // Format pubkeys for Cypher query - properly escape and format as array
+    const formattedPubkeys = pubkeyList.map(pk => `"${pk}"`).join(',');
+    
+    // Get the latest event IDs from Neo4j
+    const neo4jIdsFile = path.join(config.tempDir, `neo4j_ids_kind${eventKind}_${Date.now()}.txt`);
+    const neo4jQuery = `
+      MATCH (u:NostrUser)
+      WHERE u.pubkey IN [${formattedPubkeys}]
+      RETURN u.pubkey AS pubkey, u.kind${eventKind}EventId AS eventId
+    `;
+    
+    // Write the query to a temp file to avoid command line length limitations
+    const queryFile = path.join(config.tempDir, `query_${Date.now()}.cypher`);
+    fs.writeFileSync(queryFile, neo4jQuery);
+    
+    // Execute the query from file
+    execSync(`sudo cypher-shell -a "${config.neo4jUri}" -u "${config.neo4jUser}" -p "${config.neo4jPassword}" --file "${queryFile}" --format plain > "${neo4jIdsFile}"`);
+    
+    // Clean up query file
+    fs.unlinkSync(queryFile);
+    
+    // Get the latest event IDs from strfry
+    const strfryIdsFile = path.join(config.tempDir, `strfry_ids_kind${eventKind}_${Date.now()}.txt`);
+    
+    let strfryOutput = '';
+    for (const pubkey of pubkeyList) {
+      try {
+        // Get the latest event for this pubkey and kind
+        const eventJson = execSync(`sudo strfry scan "{ \\"kinds\\": [${eventKind}], \\"authors\\": [\\"${pubkey}\\"]}" | head -n 1`).toString().trim();
+        
+        if (eventJson) {
+          const event = JSON.parse(eventJson);
+          strfryOutput += `${pubkey},"${event.id}"\n`;
+        } else {
+          strfryOutput += `${pubkey},\n`;
+        }
+      } catch (error) {
+        console.error(`${new Date().toISOString()}: Error processing pubkey ${pubkey} with strfry: ${error.message}`);
+        strfryOutput += `${pubkey},\n`;
+      }
+    }
+    
+    fs.writeFileSync(strfryIdsFile, strfryOutput);
+    
+    // Compare the IDs and add to queue if different
+    const neo4jIds = new Map();
+    const neo4jData = fs.readFileSync(neo4jIdsFile, 'utf8').split('\n').slice(1, -1); // Skip header and footer
+    
+    for (const line of neo4jData) {
+      const [pubkey, eventId] = line.split(',').map(s => s.trim().replace(/"/g, ''));
+      neo4jIds.set(pubkey, eventId || '');
+    }
+    
+    const strfryIds = new Map();
+    const strfryData = fs.readFileSync(strfryIdsFile, 'utf8').split('\n').filter(Boolean);
+    
+    for (const line of strfryData) {
+      const [pubkey, eventId] = line.split(',').map(s => s.trim().replace(/"/g, ''));
+      strfryIds.set(pubkey, eventId || '');
+    }
+    
+    // Add to queue if IDs are different or missing in Neo4j
+    let queueCount = 0;
+    for (const pubkey of pubkeyList) {
+      const neo4jId = neo4jIds.get(pubkey) || '';
+      const strfryId = strfryIds.get(pubkey) || '';
+      
+      if (strfryId && (!neo4jId || neo4jId !== strfryId)) {
+        // Add to queue with event kind
+        const queueFile = path.join(config.queueDir, `${pubkey}_${eventKind}`);
+        fs.writeFileSync(queueFile, '');
+        queueCount++;
+      }
+    }
+    
+    console.log(`${new Date().toISOString()}: Added ${queueCount} pubkeys to queue for kind ${eventKind} (${relationshipType}) reconciliation`);
+    
+    // Clean up
+    fs.unlinkSync(neo4jIdsFile);
+    fs.unlinkSync(strfryIdsFile);
+  } catch (error) {
+    console.error(`${new Date().toISOString()}: Error processing event kind ${eventKind}: ${error.message}`);
+    throw error;
+  }
+}
+
+// Main function
+async function main() {
+  try {
+    console.log(`${new Date().toISOString()}: Starting reconciliation queue creation...`);
+    
+    // Ensure directories exist
+    await ensureDirectories();
+    
+
+// Run the main function
+main();// Get all pubkeys from Neo4j using pagination to avoid memory issues
+async function getAllPubkeys() {
+  try {
+    console.log(`${new Date().toISOString()}: Fetching pubkeys from Neo4j using pagination...`);
+    
+    const batchSize = 10000; // Number of pubkeys to fetch per batch
+    let skip = 0;
+    let hasMore = true;
+    let allPubkeys = [];
+    let totalPubkeys = 0;
+    
+    // Get the total count first
+    const countQuery = `
+      MATCH (u:NostrUser)
+      RETURN count(u) AS count
+    `;
+    
+    const countResult = execSync(`sudo cypher-shell -a "${config.neo4jUri}" -u "${config.neo4jUser}" -p "${config.neo4jPassword}" "${countQuery}" --format plain`).toString();
+    const countLines = countResult.split('\n');
+    const totalCount = parseInt(countLines[1].trim(), 10);
+    
+    console.log(`${new Date().toISOString()}: Total pubkeys in Neo4j: ${totalCount}`);
+    
+    // Fetch pubkeys in batches
+    while (hasMore) {
+      const query = `
+        MATCH (u:NostrUser)
+        RETURN u.pubkey AS pubkey
+        ORDER BY u.pubkey
+        SKIP ${skip}
+        LIMIT ${batchSize}
+      `;
+      
+      console.log(`${new Date().toISOString()}: Fetching batch of pubkeys (${skip}-${skip + batchSize})...`);
+      
+      const result = execSync(`sudo cypher-shell -a "${config.neo4jUri}" -u "${config.neo4jUser}" -p "${config.neo4jPassword}" "${query}" --format plain`).toString();
+      
+      // Parse the result (skip header and footer)
+      const lines = result.split('\n');
+      const batchPubkeys = lines.slice(1, lines.length - 1)
+        .map(line => line.trim().replace(/"/g, ''))
+        .filter(Boolean); // Remove empty lines
+      
+      if (batchPubkeys.length === 0) {
+        hasMore = false;
+      } else {
+        allPubkeys = allPubkeys.concat(batchPubkeys);
+        totalPubkeys += batchPubkeys.length;
+        
+        // Log progress
+        const progress = Math.min(100, Math.round((totalPubkeys / totalCount) * 100));
+        console.log(`${new Date().toISOString()}: Progress: ${progress}% (${totalPubkeys}/${totalCount} pubkeys)`);
+        
+        skip += batchSize;
+        
+        // Optional: free memory by triggering garbage collection if available
+        if (global.gc) global.gc();
+      }
+    }
+    
+    console.log(`${new Date().toISOString()}: Completed fetching ${allPubkeys.length} pubkeys from Neo4j`);
+    return allPubkeys;
+  } catch (error) {
+    console.error(`${new Date().toISOString()}: Error fetching pubkeys: ${error.message}`);
+    throw error;
+  }
+}

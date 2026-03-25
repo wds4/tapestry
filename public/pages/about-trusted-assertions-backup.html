@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="shortcut icon" href="/img/brainstorm010.svg">
+    <script src="./components/header/header.js"></script>
+    <script src="./components/footer/footer.js"></script>
+    <style>
+        .nip85-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+        
+        .nip85-info h2 {
+            color: #2c3e50;
+            margin-bottom: 16px;
+        }
+        
+        .nip85-info h3 {
+            color: #34495e;
+            margin: 20px 0 12px 0;
+        }
+        
+        .nip85-info ul {
+            padding-left: 20px;
+        }
+        
+        .nip85-info li {
+            margin: 12px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .nip85-info li:last-child {
+            border-bottom: none;
+        }
+        
+        .authors-showcase {
+            background: #ffffff;
+            border: 2px solid #3498db;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 32px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .authors-showcase h2 {
+            color: #2980b9;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stats-summary {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: center;
+            font-weight: 500;
+            color: #0c5460;
+        }
+        
+        .authors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        
+        .author-card {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .author-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .author-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .author-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            margin-right: 12px;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #6c757d;
+        }
+        
+        .author-info {
+            flex: 1;
+        }
+        
+        .author-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+        
+        .author-pubkey {
+            font-family: monospace;
+            font-size: 12px;
+            color: #6c757d;
+            word-break: break-all;
+        }
+        
+        .author-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #2980b9;
+            display: block;
+            font-size: 18px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        .error-state {
+            text-align: center;
+            padding: 40px;
+            color: #721c24;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+        }
+        
+        .developer-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 32px 0;
+        }
+        
+        .developer-info h2 {
+            color: #2c3e50;
+            margin-bottom: 16px;
+        }
+        
+        .integration-steps {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .step {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        
+        .step h3 {
+            color: #2980b9;
+            margin-bottom: 12px;
+        }
+        
+        .step p {
+            color: #5a6c7d;
+            margin: 0;
+        }
+        
+        /* Sample events toggle styling */
+        .sample-events-section {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .toggle-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .toggle-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            min-width: 160px;
+        }
+        
+        .toggle-btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+        
+        .toggle-btn.active {
+            background: #27ae60;
+        }
+        
+        .toggle-btn.active:hover {
+            background: #229954;
+        }
+        
+        .sample-event-container {
+            margin: 16px 0;
+            padding: 0;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .sample-event-header {
+            background: #e9ecef;
+            padding: 12px 16px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            color: #495057;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sample-event-content {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sample-event-content pre {
+            margin: 0;
+            padding: 16px;
+            background: #ffffff;
+            border: none;
+            border-radius: 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #333;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            text-align: left;
+        }
+
+        .sample-event-content-small {
+            padding: 0;
+            margin: 0;
+            font-size: 12px;
+            color: #6c757d;
+            text-align: left;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-btn:hover {
+            color: #495057;
+        }
+        
+        @media (max-width: 768px) {
+            .authors-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .integration-steps {
+                grid-template-columns: 1fr;
+            }
+            
+            .toggle-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .toggle-btn {
+                width: 200px;
+            }
+            
+            .sample-event-content pre {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">            
+            <div class="nip85-info">
+                <h2 style="text-align: center">What are Trusted Assertions?</h2>
+
+                <p>Trusted Assertions is one of several methods for delivery of personalized trust metrics for consumption by Nostr clients and users.
+                    Compared to API-based or DVM-based methods, Trusted Assertions is designed for simplicity, efficiency, versatility and ease of adoption.</p>              
+                
+                <p><i>How it works:</i>
+                    Each "trusted assertion" is a kind 3038x event that contains a list of trust scores for a specific user.
+                    Score types can follow the NIP standards (User Rank, Follower Count, etc) or be customized (e.g. GrapeRank, hops, etc).
+                    Users can signal adoption of Trusted Assertions with support by a third-party provider like Brainstorm by publishing a kind 10040 event.
+                </p>
+
+                <!-- Sample events toggle section -->
+                <div class="sample-events-section">
+                    <div class="toggle-buttons">
+                        <button id="show10040Btn" class="toggle-btn">
+                            📋 Show Sample Kind 10040
+                        </button>
+                        <button id="show30382Btn" class="toggle-btn">
+                            📊 Show Sample Kind 30382
+                        </button>
+                    </div>
+                    
+                    <!-- Sample 10040 event container -->
+                    <div id="sample10040Container" class="sample-event-container">
+                        <div class="sample-event-header">
+                            <span>Sample Kind 10040 Event (Trust Score Discovery)</span>
+                            <button class="close-btn" onclick="hideSampleEvent('10040')">&times;</button>
+                        </div>
+                        <div class="sample-event-content-small">
+                            This event identifies the third-party pubkey,
+                            <code>4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71</code>,
+                            as a trusted provider and publisher of trust scores on behalf of the user:
+                            <code>e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f</code>.
+                            Each Brainstorm user receives a unique pubkey for this purpose.
+                        </div>
+                        <div class="sample-event-content">
+                            <pre id="sample10040Content"></pre>
+                        </div>
+                    </div>
+                    
+                    <!-- Sample 30382 event container -->
+                    <div id="sample30382Container" class="sample-event-container">
+                        <div class="sample-event-header">
+                            <span>Sample Kind 30382 Event (Trust Score Data)</span>
+                            <button class="close-btn" onclick="hideSampleEvent('30382')">&times;</button>
+                        </div>
+                        <div class="sample-event-content-small">
+                            The d-tag identifies the pubkey being scored (<code>1736906a7265ad0100a8ea3019e1eb3fe1c92ce9602d7d799edbe17d9147826d</code>).
+                            Note that the event author, <code>4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71</code>, matches the pubkey in the kind 10040 event.
+                        </div>
+                        <div class="sample-event-content">
+                            <pre id="sample30382Content"></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3>Key Benefits for Developers:</h3>
+
+                <ul>
+                    <li><strong>Separation of clients and trust</strong> Calculation of sophisticated personalized trust metrics by third party providers like Brainstorm makes your life easier.</li>
+                    <li><strong>Standardized Trust Data</strong> Access consistent trust scores and score formats across nostr</li>
+                    <li><strong>Enhanced User Experience</strong> Provide users with personalized content filtering and recommendations</li>
+                    <li><strong>Spam Prevention</strong> Leverage community trust scores to reduce spam and low-quality content</li>
+                    <li><strong>Decentralized Reputation</strong> Build reputation systems without centralized authorities</li>
+                </ul>
+
+                <p>See the NIP-85: Trusted Assertions
+                    <a href="https://github.com/vitorpamplona/nips/blob/user-summaries/85.md" target="_blank">proposal</a> and
+                    <a href="https://github.com/nostr-protocol/nips/pull/1534" target="_blank">pull request</a>
+                    for more information.
+                </p>  
+            </div>
+            
+            <!-- NIP-85 Authors Showcase -->
+            <div class="authors-showcase">
+                <h2>🌟 NIP-85 Adopters</h2>
+                <p>See who's already using NIP-85 to publish personalized trust scores on the Nostr network:</p>
+                
+                <div id="authorsLoading" class="loading-state">
+                    <div class="loader"></div>
+                    <p>Loading NIP-85 authors...</p>
+                </div>
+                
+                <div id="authorsContent" style="display: none;">
+                    <div id="authorsStats" class="stats-summary"></div>
+                    <div id="authorsList" class="authors-grid"></div>
+                </div>
+                
+                <div id="authorsError" class="error-state" style="display: none;">
+                    <h3>❌ Error Loading Authors</h3>
+                    <p id="authorsErrorMessage">Unable to load NIP-85 authors at this time.</p>
+                    <button id="retryAuthorsBtn" class="btn btn-secondary">🔄 Retry</button>
+                </div>
+            </div>
+            
+            <div class="developer-info">
+                <h2>🚀 For Developers: Get Started with NIP-85</h2>
+                <p>Ready to integrate NIP-85 trust scores into your Nostr application? Here's how to get started.</p>
+
+                <p>Let's assume you have a user: observer_pubkey, and you want to fetch personalized trust scores of one or more observee_pubkeys.</p>
+                
+                <div class="integration-steps">
+                    <div class="step">
+                        <h3>1. Look for the end-user Kind 10040 Event</h3>
+                        <p>Adopters of NIP-85 will have a kind 10040 event.</p>
+                        <p>Filter:</p>
+                        <pre>{"kinds":[10040], "authors":[observer_pubkey]}</pre>
+                        <p>There are three salient pieces of information stored in tags:</p>
+                        <ul>
+                            <li>A list of trust metrics. Some will be NIP-85-standardized, like `rank` or `followers`, while others may be customized.</li>
+                            <li>For each metric, the pubkey of the relay that publishes the metric; 30382_publisher_pubkey. In theory this could be the user pubkey, but in practice this will often not be the case. When a user signs up to Brainstorm, a new customer relay nsec is issued which will publish kind 30382 events periodically on behalf of the customer.</li>
+                            <li>For each metric, a relay where the kind 30382 notes can be found; 30382_relay_url. This will be a huge number of notes, so we don't necessarily want all of them to be spread across all the relays of nostr. For Brainstorm, this will be the relay of the brainstorm relay instance, e.g. <code>wss://straycat.brainstorm.social/relay</code>.</li>
+                        </ul>
+                        <p>For users who have not yet signed up to Brainstorm or adopted NIP-85 using some other provider, personalized scores will not be available. The easist fallback solution would be to use an existing NIP-85 enabled npub as your app's "global trust scores". Alternatively, you could search the user's follows list for a NIP-85 adopter, and use those scores.</p>
+                    </div>
+                    <div class="step">
+                        <h3>2. Fetch Trust Scores</h3>
+                        <p>Connect to the referenced relay to fetch Kind 30382 events authored by the 30382 publisher pubkey, and extract the personalized trust score(s) of interest.</p>
+                        <p>The filter should look something like this:</p>
+                        <pre>{"kinds":[30382], "authors":[30382_publisher_pubkey], "#d":[observee_pubkey]}</pre>
+                    </div>
+                    <div class="step">
+                        <h3>3. Apply Trust Metrics</h3>
+                        <p>Use the trust scores to filter, rank, or recommend content in your application.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the footer component -->
+    <div id="footerContainer"></div>
+    
+    <script>
+        // sample 10040 event
+        const sample10040Event = {
+  "content": "",
+  "created_at": 1753498423,
+  "id": "2f7bce584659acf65eaf5c47e921b807adc6c9b2ac69205d18f12749d923dd70",
+  "kind": 10040,
+  "pubkey": "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f",
+  "sig": "13616a21fce28fc8cb8e79e00d8bc5c87ece74f6ca029545e2ccaf8c7d19be64ad01ac597d30d581f6883fecd37f40bb60be4c567fcc0c3f6dc560041bc86faf",
+  "tags": [
+    [
+      "30382:rank",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:personalizedGrapeRank_influence",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:personalizedGrapeRank_average",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:personalizedGrapeRank_confidence",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:personalizedGrapeRank_input",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:personalizedPageRank",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:verifiedFollowersCount",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:verifiedMutersCount",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:verifiedReportersCount",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ],
+    [
+      "30382:hops",
+      "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+      "wss://straycat.brainstorm.social/relay"
+    ]
+  ]
+};
+        
+        // sample 30382 event
+        const sample30382Event = {
+  "content": "",
+  "created_at": 1753815259,
+  "id": "92239fa7ec696c6a7ad10364c178b00bfc76f71649d3e298bd94193582a23180",
+  "kind": 30382,
+  "pubkey": "4cf22476976ba65be0b044c3e6851c535708596a93cf6e8f7a05e5989ea8ad71",
+  "sig": "ee41d9a67897f999aae28bdd1d29e13bdf5cf8ece4630c74c9671cf682c6613ab7e6f01d16851f3a99b283edbd0ca2b6e1dcbe4972ec7b3c99676e0d6796b6d6",
+  "tags": [
+    [
+      "d",
+      "1736906a7265ad0100a8ea3019e1eb3fe1c92ce9602d7d799edbe17d9147826d"
+    ],
+    [
+      "rank",
+      "1"
+    ],
+    [
+      "hops",
+      "3"
+    ],
+    [
+      "personalizedGrapeRank_influence",
+      "0.01000122352582411"
+    ],
+    [
+      "personalizedGrapeRank_average",
+      "1"
+    ],
+    [
+      "personalizedGrapeRank_confidence",
+      "0.01000122352582411"
+    ],
+    [
+      "personalizedGrapeRank_input",
+      "0.02333326453637423"
+    ],
+    [
+      "personalizedPageRank",
+      "3.330473852696137e-7"
+    ],
+    [
+      "verifiedFollowerCount",
+      "1"
+    ],
+    [
+      "verifiedMuterCount",
+      "0"
+    ],
+    [
+      "verifiedReporterCount",
+      "0"
+    ]
+  ]
+};
+
+        // State management
+        const authorsState = {
+            loading: document.getElementById('authorsLoading'),
+            content: document.getElementById('authorsContent'),
+            error: document.getElementById('authorsError'),
+            stats: document.getElementById('authorsStats'),
+            list: document.getElementById('authorsList'),
+            errorMessage: document.getElementById('authorsErrorMessage'),
+            retryBtn: document.getElementById('retryAuthorsBtn')
+        };
+        
+        // Load NIP-85 authors on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNip85Authors();
+            setupSampleEventToggles();
+            
+            // Setup retry button
+            authorsState.retryBtn.addEventListener('click', function() {
+                loadNip85Authors();
+            });
+        });
+        
+        /**
+         * Setup sample event toggle buttons
+         */
+        function setupSampleEventToggles() {
+            const show10040Btn = document.getElementById('show10040Btn');
+            const show30382Btn = document.getElementById('show30382Btn');
+            
+            show10040Btn.addEventListener('click', function() {
+                toggleSampleEvent('10040');
+            });
+            
+            show30382Btn.addEventListener('click', function() {
+                toggleSampleEvent('30382');
+            });
+        }
+        
+        /**
+         * Toggle display of sample events
+         */
+        function toggleSampleEvent(eventType) {
+            const container = document.getElementById(`sample${eventType}Container`);
+            const button = document.getElementById(`show${eventType}Btn`);
+            const content = document.getElementById(`sample${eventType}Content`);
+            
+            if (container.style.display === 'none' || container.style.display === '') {
+                // Show the event
+                const eventData = eventType === '10040' ? sample10040Event : sample30382Event;
+                content.textContent = JSON.stringify(eventData, null, 2);
+                container.style.display = 'block';
+                button.classList.add('active');
+                button.innerHTML = eventType === '10040' ? '✅ Hide Kind 10040' : '✅ Hide Kind 30382';
+                
+                // Scroll to the event container
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                // Hide the event
+                hideSampleEvent(eventType);
+            }
+        }
+        
+        /**
+         * Hide sample event (called by close button or toggle)
+         */
+        function hideSampleEvent(eventType) {
+            const container = document.getElementById(`sample${eventType}Container`);
+            const button = document.getElementById(`show${eventType}Btn`);
+            
+            container.style.display = 'none';
+            button.classList.remove('active');
+            button.innerHTML = eventType === '10040' ? '📋 Show Sample Kind 10040' : '📊 Show Sample Kind 30382';
+        }
+        
+        async function loadNip85Authors() {
+            try {
+                // Show loading state
+                showAuthorsState('loading');
+                
+                console.log('[about-trusted-assertions] Loading NIP-85 authors...');
+                
+                // Fetch all Kind 10040 authors
+                const authorsResponse = await fetch('/api/get-all-10040-authors-locally');
+                const authorsData = await authorsResponse.json();
+                
+                if (!authorsData.success) {
+                    throw new Error(authorsData.message || 'Failed to load authors');
+                }
+                
+                console.log('[about-trusted-assertions] Authors loaded:', authorsData.data);
+                
+                // Display stats
+                displayAuthorsStats(authorsData.data);
+                
+                // Load profile and NIP-85 data for each author
+                await loadAuthorsProfiles(authorsData.data.authors);
+                
+                // Show content
+                showAuthorsState('content');
+                
+            } catch (error) {
+                console.error('[about-trusted-assertions] Error loading authors:', error);
+                authorsState.errorMessage.textContent = error.message;
+                showAuthorsState('error');
+            }
+        }
+        
+        function showAuthorsState(state) {
+            // Hide all states
+            authorsState.loading.style.display = 'none';
+            authorsState.content.style.display = 'none';
+            authorsState.error.style.display = 'none';
+            
+            // Show requested state
+            if (state === 'loading') {
+                authorsState.loading.style.display = 'block';
+            } else if (state === 'content') {
+                authorsState.content.style.display = 'block';
+            } else if (state === 'error') {
+                authorsState.error.style.display = 'block';
+            }
+        }
+        
+        function displayAuthorsStats(data) {
+            const statsHtml = `
+                <strong>📊 ${data.count} NIP-85 Users</strong> are using NIP-85 for personalized web of trust
+                (${data.stats.validEventsProcessed.toLocaleString()} kind 10040 events)
+            `;
+            authorsState.stats.innerHTML = statsHtml;
+        }
+        
+        async function loadAuthorsProfiles(authors) {
+            console.log('[about-trusted-assertions] Loading profiles for', authors.length, 'authors');
+            
+            const authorCards = [];
+            
+            // Process authors in batches to avoid overwhelming the server
+            const batchSize = 5;
+            for (let i = 0; i < authors.length; i += batchSize) {
+                const batch = authors.slice(i, i + batchSize);
+                const batchPromises = batch.map(pubkey => loadAuthorData(pubkey));
+                const batchResults = await Promise.allSettled(batchPromises);
+                
+                batchResults.forEach((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        authorCards.push(result.value);
+                    } else {
+                        console.error('[about-trusted-assertions] Failed to load author:', batch[index], result.reason);
+                        // Create fallback card for failed loads
+                        authorCards.push(createFallbackAuthorCard(batch[index]));
+                    }
+                });
+                
+                // Small delay between batches
+                if (i + batchSize < authors.length) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            // Display all author cards
+            authorsState.list.innerHTML = authorCards.join('');
+            
+            // Add click handlers for profile links
+            setupAuthorCardHandlers();
+        }
+        
+        async function loadAuthorData(pubkey) {
+            try {
+                // Load profile, NIP-85 status, and npub in parallel
+                const [profileResponse, nip85Response, npubResponse] = await Promise.all([
+                    fetch(`/api/get-kind0?pubkey=${pubkey}`),
+                    fetch(`/api/get-nip85-status?pubkey=${pubkey}`),
+                    fetch(`/api/get-npub-from-pubkey?pubkey=${pubkey}`)
+                ]);
+                
+                const profileData = await profileResponse.json();
+                const nip85Data = await nip85Response.json();
+                const npubData = await npubResponse.json();
+                
+                return createAuthorCard(pubkey, profileData, nip85Data, npubData);
+                
+            } catch (error) {
+                console.error('[about-trusted-assertions] Error loading data for author:', pubkey, error);
+                throw error;
+            }
+        }
+        
+        function createAuthorCard(pubkey, profileData, nip85Data, npubData) {
+            // Extract profile info
+            console.log(`profileData: ${JSON.stringify(profileData)}`);
+            let profileKind0Event = {}
+            if (profileData.success && profileData.data && profileData.data.content) {
+                profileKind0Event = JSON.parse(profileData.data.content);
+            }
+            const displayName = profileKind0Event.name || profileKind0Event.display_name || 'Anonymous';
+            const avatar = profileKind0Event.picture || '';
+            
+            // Extract npub or fallback to truncated pubkey
+            const displayPubkey = npubData && npubData.success && npubData.npub 
+                ? npubData.npub 
+                : `${pubkey.substring(0, 8)}...${pubkey.substring(56)}`;
+            
+            // Extract NIP-85 info
+            const kind30382Count = nip85Data.success && nip85Data.data && nip85Data.data.kind30382 
+                ? nip85Data.data.kind30382.count || 0 
+                : 0;
+            
+            const hasKind10040 = nip85Data.success && nip85Data.data && nip85Data.data.kind10040 
+                ? nip85Data.data.kind10040.exists 
+                : false;
+            
+            return `
+                <div class="author-card" data-pubkey="${pubkey}">
+                    <div class="author-header">
+                        <div class="author-avatar">
+                            ${avatar ? `<img src="${avatar}" alt="${displayName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : '👤'}
+                        </div>
+                        <div class="author-info">
+                            <div class="author-name">${escapeHtml(displayName)}</div>
+                            <div class="author-pubkey">${displayPubkey}</div>
+                        </div>
+                    </div>
+                    <div class="author-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">${hasKind10040 ? '✅' : '❌'}</span>
+                            <div class="stat-label">Kind 10040</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">${kind30382Count.toLocaleString()}</span>
+                            <div class="stat-label">Trusted Assertions</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function createFallbackAuthorCard(pubkey) {
+            const truncatedPubkey = `${pubkey.substring(0, 8)}...${pubkey.substring(56)}`;
+            
+            return `
+                <div class="author-card" data-pubkey="${pubkey}">
+                    <div class="author-header">
+                        <div class="author-avatar">👤</div>
+                        <div class="author-info">
+                            <div class="author-name">Loading failed</div>
+                            <div class="author-pubkey">${truncatedPubkey}</div>
+                        </div>
+                    </div>
+                    <div class="author-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">❓</span>
+                            <div class="stat-label">Kind 10040</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">-</span>
+                            <div class="stat-label">Trust Scores</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function setupAuthorCardHandlers() {
+            const authorCards = document.querySelectorAll('.author-card');
+            authorCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const pubkey = this.dataset.pubkey;
+                    if (pubkey) {
+                        window.open(`./profile.html?pubkey=${pubkey}`, '_blank');
+                    }
+                });
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

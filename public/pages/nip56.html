@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIP-56 Reports Summary</title>
+    <link rel="stylesheet" href="/control/css/nip56.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <style>
+        .report-type-selector {
+            margin: 20px 0 30px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .report-type-selector label {
+            font-weight: bold;
+        }
+        th.sorted-asc, th.sorted-desc { color: #7a4cff; }
+        .sort-indicator { font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="header-profiles">
+                <div class="report-type-selector">
+                    <label for="reportTypeSelect">NIP-56 Report Type:</label>
+                    <select id="reportTypeSelect"></select>
+                </div>
+            </div>
+            <div class="results-row" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px;">
+                <div id="resultsIndicator" style="margin: 10px 0 10px 0; font-weight: bold;"></div>
+                <div class="column-panel-controls" style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 600; font-size: 1.03em; letter-spacing: 0.01em;">Columns</span>
+                    <button id="columnSettingsButton" class="secondary" title="Toggle column visibility" style="font-size: 1.06em; padding: 4px 4px; min-width: 32px;">+</button>
+                    <button id="columnInfoBtn" class="secondary" title="Show column information" style="font-size: 1.06em; padding: 4px 4px; min-width: 32px;">?</button>
+                </div>
+            </div>
+            <div id="columnSettingsPanel" class="panel" style="display: none; margin-bottom: 10px;">
+                <h3>Column Visibility</h3>
+                <div id="columnToggles"></div>
+                <button id="resetColumnDefaultsBtn" class="secondary" style="margin-top: 10px;">Reset Defaults</button>
+            </div>
+            <div id="columnInfoPanel" class="panel" style="display: none; margin-bottom: 10px;">
+                <li>Total Count means all reports in the database. Including the bots!</li>
+                <li>🍇-Verified Report/Follower Count include only those reports/follows corresponding to profiles with GrapeRank Influence score above an arbitrarily chosen cutoff value (default: 0.1).</li>
+            </div>
+            <div id="tableContainer">
+                <div id="loadingIndicator" class="loading"></div>
+                <table id="nip56ProfilesTable" style="display: none;">
+                    <thead>
+                        <tr class="header-row">
+                        </tr>
+                        <tr class="filter-row">
+                        </tr>
+                    </thead>
+                    <tbody id="nip56ProfilesTableBody"></tbody>
+                </table>
+            </div>
+            <div id="paginationContainer" class="pagination" style="display: none;"></div>
+            <div id="pageSizeContainer" class="pagination" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+    // --- Report Types ---
+    const reportTypes = [
+        'impersonation',
+        'nudity',
+        'malware',
+        'profanity',
+        'illegal',
+        'spam',
+        'other'
+    ];
+    // --- Global: Store all profiles for client-side filtering/sorting ---
+    let allProfiles = [];
+    // --- Column Definitions for Visibility ---
+    const nip56Columns = [
+        { id: 'pic', label: 'Pic', visible: true },
+        { id: 'pubkey', label: 'Pubkey', visible: true },
+        { id: 'grapeRankScore', label: '🍇-Verified Reports Weight', visible: true },
+        { id: 'totalVerifiedCount', label: '🍇-Verified Report Count', visible: true },
+        { id: 'totalCount', label: 'Total Report Count', visible: true },
+        { id: 'influence', label: '🍇-Influence', visible: true },
+        { id: 'verifiedFollowerCount', label: '🍇-Verified Follower Count', visible: true }
+    ];
+    let columnVisibility = {};
+    function loadColumnVisibility() {
+        const saved = localStorage.getItem('nip56ColumnVisibility');
+        if (saved) {
+            columnVisibility = JSON.parse(saved);
+        } else {
+            // Responsive default: totalVerifiedCount and verifiedFollowerCount on for narrow screens, all on otherwise
+            const isNarrow = window.innerWidth <= 700;
+            nip56Columns.forEach(col => {
+                if (isNarrow) {
+                    columnVisibility[col.id] = (col.id === 'totalVerifiedCount' || col.id === 'verifiedFollowerCount');
+                } else {
+                    columnVisibility[col.id] = col.visible;
+                }
+            });
+        }
+    }
+    function saveColumnVisibility() {
+        localStorage.setItem('nip56ColumnVisibility', JSON.stringify(columnVisibility));
+    }
+    function initColumnToggles() {
+        const togglesDiv = document.getElementById('columnToggles');
+        togglesDiv.innerHTML = '';
+        nip56Columns.forEach((col, idx) => {
+            const label = document.createElement('label');
+            label.style.display = 'block';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = columnVisibility[col.id];
+            checkbox.addEventListener('change', function() {
+                columnVisibility[col.id] = this.checked;
+                saveColumnVisibility();
+                renderTable();
+            });
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(' ' + col.label));
+            togglesDiv.appendChild(label);
+        });
+    }
+    function toggleColumnSettingsPanel() {
+        const panel = document.getElementById('columnSettingsPanel');
+        panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+    }
+    // --- DOM Elements ---
+    const reportTypeSelect = document.getElementById('reportTypeSelect');
+    const tableBody = document.getElementById('nip56ProfilesTableBody');
+    const profilesTable = document.getElementById('nip56ProfilesTable');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const paginationContainer = document.getElementById('paginationContainer');
+    // --- State ---
+    const DEFAULT_PAGE_SIZE = 50;
+    const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+    let state = {
+        sortBy: 'totalVerifiedCount',
+        sortOrder: 'desc',
+        profiles: [],
+        reportType: reportTypes[0],
+        filters: {
+            pubkey: '',
+            minGrapeRank: '',
+            maxGrapeRank: '',
+            minVerifiedCount: '',
+            maxVerifiedCount: '',
+            minTotalCount: '',
+            maxTotalCount: '',
+            minInfluence: '',
+            maxInfluence: '',
+            minVerifiedFollowers: '',
+            maxVerifiedFollowers: ''
+        },
+        page: 1,
+        pageSize: DEFAULT_PAGE_SIZE
+    };
+    // --- Populate Report Type Selector ---
+    function populateReportTypeSelector() {
+        reportTypes.forEach(type => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            reportTypeSelect.appendChild(opt);
+        });
+        reportTypeSelect.value = state.reportType;
+    }
+    // --- Fetch Profiles ---
+    function fetchProfiles() {
+        loadingIndicator.style.display = 'flex';
+        profilesTable.style.display = 'none';
+        paginationContainer.style.display = 'none';
+        tableBody.innerHTML = '';
+        const params = new URLSearchParams({
+            reportType: state.reportType
+        });
+        fetch(`/api/get-nip56-profiles?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    allProfiles = data.data.profiles;
+                    state.profiles = allProfiles;
+                    renderTable();
+                    profilesTable.style.display = '';
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="7">${data.message || 'Failed to load data'}</td></tr>`;
+                }
+            })
+            .catch(e => {
+                tableBody.innerHTML = `<tr><td colspan="7">Error: ${e.message}</td></tr>`;
+            })
+            .finally(() => {
+                loadingIndicator.style.display = 'none';
+            });
+    }
+    // --- Render Table ---
+    function renderTable() {
+        console.log(`renderTable`);
+        tableBody.innerHTML = '';
+        // Filtering
+        let filtered = filterProfiles(allProfiles);
+        // Results indicator
+        renderResultsIndicator(filtered.length, allProfiles.length);
+        // Sorting (use numeric fallback for undefined/null, and ensure correct comparison for numbers)
+        filtered.sort((a, b) => {
+            const key = state.sortBy;
+            let va = a[key], vb = b[key];
+            // Try to convert to numbers if possible for numeric columns
+            if (typeof va === 'string' && !isNaN(parseFloat(va)) && isFinite(va)) va = parseFloat(va);
+            if (typeof vb === 'string' && !isNaN(parseFloat(vb)) && isFinite(vb)) vb = parseFloat(vb);
+            // Handle undefined/null
+            if (va === undefined || va === null || (typeof va === 'number' && isNaN(va))) va = -Infinity;
+            if (vb === undefined || vb === null || (typeof vb === 'number' && isNaN(vb))) vb = -Infinity;
+            // For strings, compare case-insensitively
+            if (typeof va === 'string' && typeof vb === 'string') {
+                va = va.toLowerCase();
+                vb = vb.toLowerCase();
+            }
+            if (va < vb) return state.sortOrder === 'asc' ? -1 : 1;
+            if (va > vb) return state.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+        // Pagination
+        const total = filtered.length;
+        const startIdx = (state.page - 1) * state.pageSize;
+        const endIdx = Math.min(startIdx + state.pageSize, total);
+        const pageRows = filtered.slice(startIdx, endIdx);
+        if (pageRows.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7">No profiles found for this report type.</td></tr>';
+            renderPagination(0, 1);
+            return;
+        }
+        // Render header
+        const headerRow = document.querySelector('#nip56ProfilesTable .header-row');
+        headerRow.innerHTML = '';
+        // Track mapping of rendered th to column id for sorting
+        const thToColId = [];
+        nip56Columns.forEach(col => {
+            if (!columnVisibility[col.id]) return;
+            const th = document.createElement('th');
+            th.textContent = col.label;
+            // BAD columns
+            if (col.id === 'grapeRankScore' || col.id === 'totalVerifiedCount' || col.id === 'totalCount') {
+                th.classList.add('bad-col');
+            }
+            // GOOD columns
+            if (col.id === 'influence' || col.id === 'verifiedFollowerCount') {
+                th.classList.add('good-col');
+            }
+            if (col.id === 'pic') {
+                th.className = 'profile-pic-cell';
+                th.style.width = '44px';
+                th.style.minWidth = '44px';
+                th.style.maxWidth = '44px';
+            }
+            // Sorting: only add sort indicator for sortable columns (not pic)
+            if (col.id !== 'pic') {
+                th.style.cursor = 'pointer';
+                // Add sort indicator if this is the sorted column
+                if (state.sortBy === col.id) {
+                    th.classList.add(state.sortOrder === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                    const span = document.createElement('span');
+                    span.className = 'sort-indicator';
+                    span.textContent = state.sortOrder === 'asc' ? ' ▲' : ' ▼';
+                    th.appendChild(span);
+                }
+                th.onclick = () => {
+                    if (state.sortBy === col.id) {
+                        state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        state.sortBy = col.id;
+                        state.sortOrder = 'desc';
+                    }
+                    renderTable();
+                };
+            }
+            headerRow.appendChild(th);
+            thToColId.push(col.id);
+        });
+        // Set compact-table class if <= 2 data columns are visible (excluding pic)
+        const tableElem = document.getElementById('nip56ProfilesTable');
+        // Count only data columns (exclude pic)
+        const visibleDataCols = nip56Columns.filter(col => col.id !== 'pic' && columnVisibility[col.id]);
+        if (visibleDataCols.length <= 2) {
+            tableElem.classList.add('compact-table');
+        } else {
+            tableElem.classList.remove('compact-table');
+        }
+        // Render filter row (optional: hide if column hidden)
+        const filterRow = document.querySelector('#nip56ProfilesTable .filter-row');
+        filterRow.innerHTML = '';
+        nip56Columns.forEach(col => {
+            if (!columnVisibility[col.id]) return;
+            let th = document.createElement('th');
+            // Dynamically create filter inputs and attach event listeners
+            if (col.id === 'pubkey') {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = 'Pubkey contains...';
+                input.className = 'table-filter';
+                input.value = state.filters?.pubkey || '';
+                input.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.pubkey = this.value;
+                    renderTable();
+                });
+                th.appendChild(input);
+            } else if (col.id === 'grapeRankScore') {
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = state.filters?.minGrapeRank || '';
+                minInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.minGrapeRank = this.value;
+                    renderTable();
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = state.filters?.maxGrapeRank || '';
+                maxInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.maxGrapeRank = this.value;
+                    renderTable();
+                });
+                th.appendChild(minInput);
+                th.appendChild(maxInput);
+            } else if (col.id === 'totalVerifiedCount') {
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = state.filters?.minVerifiedCount || '';
+                minInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.minVerifiedCount = this.value;
+                    renderTable();
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = state.filters?.maxVerifiedCount || '';
+                maxInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.maxVerifiedCount = this.value;
+                    renderTable();
+                });
+                th.appendChild(minInput);
+                th.appendChild(maxInput);
+            } else if (col.id === 'totalCount') {
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = state.filters?.minTotalCount || '';
+                minInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.minTotalCount = this.value;
+                    renderTable();
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = state.filters?.maxTotalCount || '';
+                maxInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.maxTotalCount = this.value;
+                    renderTable();
+                });
+                th.appendChild(minInput);
+                th.appendChild(maxInput);
+            } else if (col.id === 'influence') {
+                const minInput = document.createElement('input');
+                minInput.type = 'text';
+                minInput.inputMode = 'decimal';
+                minInput.autocomplete = 'off';
+                minInput.pattern = '^-?\\d*(\\.\\d*)?$';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = state.filters?.minInfluence || '';
+                minInput.addEventListener('input', function() {
+                    if (this.value === '' || /^-?\d*(\.\d*)?$/.test(this.value)) {
+                        state.filters = state.filters || {};
+                        state.filters.minInfluence = this.value;
+                    } else {
+                        this.classList.add('input-error');
+                    }
+                });
+                minInput.addEventListener('blur', function() {
+                    this.classList.remove('input-error');
+                    renderTable();
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'text';
+                maxInput.inputMode = 'decimal';
+                maxInput.autocomplete = 'off';
+                maxInput.pattern = '^-?\\d*(\\.\\d*)?$';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = state.filters?.maxInfluence || '';
+                maxInput.addEventListener('input', function() {
+                    if (this.value === '' || /^-?\d*(\.\d*)?$/.test(this.value)) {
+                        state.filters = state.filters || {};
+                        state.filters.maxInfluence = this.value;
+                    } else {
+                        this.classList.add('input-error');
+                    }
+                });
+                maxInput.addEventListener('blur', function() {
+                    this.classList.remove('input-error');
+                    renderTable();
+                });
+                th.appendChild(minInput);
+                th.appendChild(maxInput);
+            } else if (col.id === 'verifiedFollowerCount') {
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = state.filters?.minVerifiedFollowers || '';
+                minInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.minVerifiedFollowers = this.value;
+                    renderTable();
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = state.filters?.maxVerifiedFollowers || '';
+                maxInput.addEventListener('input', function() {
+                    state.filters = state.filters || {};
+                    state.filters.maxVerifiedFollowers = this.value;
+                    renderTable();
+                });
+                th.appendChild(minInput);
+                th.appendChild(maxInput);
+            }
+            filterRow.appendChild(th);
+        });
+        // Render table body
+        pageRows.forEach(profile => {
+            const row = document.createElement('tr');
+            nip56Columns.forEach(col => {
+                if (!columnVisibility[col.id]) return;
+                let cell;
+                if (col.id === 'pic') {
+                    cell = document.createElement('td');
+                    cell.className = 'profile-pic-cell';
+                    cell.setAttribute('data-label', col.label);
+                    // Profile pic
+                    const picLink = document.createElement('a');
+                    picLink.href = `profile.html?pubkey=${profile.pubkey}`;
+                    picLink.target = '_blank';
+                    const img = document.createElement('img');
+                    img.alt = 'Profile Picture';
+                    img.className = 'profile-pic';
+                    picLink.appendChild(img);
+                    cell.appendChild(picLink);
+                    const cache = profileCache[profile.pubkey];
+                    if (cache && cache.pictureLoaded) {
+                        if (cache.picture) {
+                            img.src = cache.picture;
+                            img.title = cache.display_name || cache.name || '';
+                            img.style.display = '';
+                        } else {
+                            updateProfilePictureWithData(img, cache);
+                        }
+                    } else {
+                        img.src = '/img/default-avatar.svg';
+                        img.title = '';
+                        loadProfilePicture(profile.pubkey, img);
+                    }
+                    img.onerror = function() {
+                        if (img.src !== '/img/default-avatar.svg') {
+                            img.src = '/img/default-avatar.svg';
+                        }
+                    };
+                } else if (col.id === 'pubkey') {
+                    cell = document.createElement('td');
+                    cell.className = 'pubkey-cell';
+                    cell.setAttribute('data-label', col.label);
+                    const pubkeyLink = document.createElement('a');
+                    pubkeyLink.href = `https://njump.me/p/${profile.pubkey}`;
+                    pubkeyLink.target = '_blank';
+                    pubkeyLink.className = 'pubkey-link';
+                    pubkeyLink.textContent = profile.pubkey.substring(0, 12) + '...';
+                    pubkeyLink.title = profile.pubkey;
+                    cell.appendChild(pubkeyLink);
+                } else if (col.id === 'grapeRankScore' || col.id === 'totalVerifiedCount' || col.id === 'totalCount') {
+                    cell = document.createElement('td');
+                    cell.classList.add('bad-col');
+                    cell.setAttribute('data-label', col.label);
+                    addNumericCell(cell, profile[col.id], col.id === 'grapeRankScore' ? 3 : undefined);
+                } else if (col.id === 'influence' || col.id === 'verifiedFollowerCount') {
+                    cell = document.createElement('td');
+                    cell.classList.add('good-col');
+                    cell.setAttribute('data-label', col.label);
+                    addNumericCell(cell, profile[col.id], col.id === 'influence' ? 4 : undefined);
+                }
+                else {
+                    cell = document.createElement('td');
+                    cell.setAttribute('data-label', col.label);
+                    addNumericCell(cell, profile[col.id]);
+                }
+                row.appendChild(cell);
+            });
+            tableBody.appendChild(row);
+        });
+        renderPagination(total, Math.ceil(total / state.pageSize));
+    }
+    // --- Add Numeric Cell ---
+    function addNumericCell(cell, value, decimals = 0) {
+        if (typeof value === 'number' && !isNaN(value)) {
+            cell.textContent = decimals > 0 ? value.toFixed(decimals) : value;
+        } else {
+            cell.textContent = '—';
+        }
+    }
+    // --- Profile Picture Cache (shared with profiles.html pattern) ---
+    const profileCache = {};
+
+    // --- Load Profile Picture (fetches kind0 profile, uses cache, fallback to default avatar) ---
+    function loadProfilePicture(pubkey, imgElement) {
+        if (profileCache[pubkey] && profileCache[pubkey].pictureLoaded) {
+            // Already loaded, nothing to do
+            return;
+        }
+        fetch(`/control/api/get-kind0?pubkey=${pubkey}`)
+            .then(response => response.json())
+            .then(data => {
+                let profileData = null;
+                if (data.success && data.data && data.data.content) {
+                    try {
+                        profileData = JSON.parse(data.data.content);
+                    } catch (e) {
+                        // Ignore parse errors
+                    }
+                }
+                profileData = profileData || {};
+                profileData.pubkey = pubkey;
+                if (!('picture' in profileData)) profileData.picture = undefined;
+                if (!('name' in profileData)) profileData.name = undefined;
+                if (!('display_name' in profileData)) profileData.display_name = undefined;
+                profileData.pictureLoaded = true;
+                profileCache[pubkey] = profileData;
+                updateProfilePictureWithData(imgElement, profileData);
+            })
+            .catch(() => {
+                // On error, store a stub
+                profileCache[pubkey] = { pubkey, picture: undefined, name: undefined, display_name: undefined, pictureLoaded: true };
+                updateProfilePictureWithData(imgElement, profileCache[pubkey]);
+            });
+    }
+
+    // --- Update Profile Picture With Data (fail gracefully like profiles.html) ---
+    function updateProfilePictureWithData(imgElement, profileData) {
+        // Remove any previous sibling placeholder
+        if (imgElement.nextSibling && imgElement.nextSibling.classList && imgElement.nextSibling.classList.contains('default-profile-pic')) {
+            imgElement.parentNode.removeChild(imgElement.nextSibling);
+        }
+        // Remove any previous placeholder in the parent
+        if (imgElement.parentNode) {
+            Array.from(imgElement.parentNode.children).forEach(child => {
+                if (child !== imgElement && child.classList && child.classList.contains('default-profile-pic')) {
+                    imgElement.parentNode.removeChild(child);
+                }
+            });
+        }
+        if (profileData && profileData.picture) {
+            imgElement.src = profileData.picture;
+            imgElement.title = profileData.display_name || profileData.name || '';
+            imgElement.style.display = '';
+            imgElement.onerror = function() {
+                imgElement.style.display = 'none';
+                if (profileData && profileData.pubkey) {
+                    if (!profileCache[profileData.pubkey]) profileCache[profileData.pubkey] = {};
+                    profileCache[profileData.pubkey].pictureFailed = true;
+                }
+                if (imgElement.parentNode) {
+                    Array.from(imgElement.parentNode.children).forEach(child => {
+                        if (child.classList && child.classList.contains('default-profile-pic')) {
+                            imgElement.parentNode.removeChild(child);
+                        }
+                    });
+                }
+                let placeholder = document.createElement('div');
+                placeholder.className = 'default-profile-pic';
+                if (profileData.name) {
+                    placeholder.textContent = profileData.name.substring(0, 2).toUpperCase();
+                } else {
+                    placeholder.textContent = '??';
+                }
+                if (imgElement.parentNode) {
+                    imgElement.parentNode.appendChild(placeholder);
+                }
+            };
+        } else {
+            // No valid picture, always show default avatar and placeholder
+            imgElement.src = '/img/default-avatar.svg';
+            imgElement.title = '';
+            imgElement.style.display = 'none';
+            if (imgElement.parentNode) {
+                // Remove any existing placeholder before adding a new one
+                Array.from(imgElement.parentNode.children).forEach(child => {
+                    if (child.classList && child.classList.contains('default-profile-pic')) {
+                        imgElement.parentNode.removeChild(child);
+                    }
+                });
+                let placeholder = document.createElement('div');
+                placeholder.className = 'default-profile-pic';
+                if (profileData && profileData.name) {
+                    placeholder.textContent = profileData.name.substring(0, 2).toUpperCase();
+                } else {
+                    placeholder.textContent = '??';
+                }
+                imgElement.parentNode.appendChild(placeholder);
+            }
+        }
+    }
+
+    // Fix column settings panel toggle to close when clicking outside or re-clicking the button
+    document.addEventListener('click', function(e) {
+        const panel = document.getElementById('columnSettingsPanel');
+        const btn = document.getElementById('columnSettingsButton');
+        if (!panel || !btn) return;
+        if (panel.style.display === 'none') return;
+        if (!panel.contains(e.target) && !btn.contains(e.target)) {
+            panel.style.display = 'none';
+        }
+    });
+
+    // --- Results Count Indicator ---
+    function renderResultsIndicator(filteredCount, totalCount) {
+        let indicator = document.getElementById('resultsIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'resultsIndicator';
+            indicator.style.margin = '10px 0 10px 0';
+            indicator.style.fontWeight = 'bold';
+            const container = document.querySelector('.header-profiles');
+            container.appendChild(indicator);
+        }
+        indicator.textContent = `Showing ${filteredCount} of ${totalCount} profiles`;
+    }
+
+    // --- Pagination Controls ---
+    function renderPagination(total, pages) {
+        paginationContainer.innerHTML = '';
+        if (pages <= 1) {
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        paginationContainer.style.display = '';
+        // Previous button
+        const prevButton = document.createElement('button');
+        prevButton.textContent = '←';
+        prevButton.disabled = state.page === 1;
+        prevButton.onclick = () => {
+            if (state.page > 1) {
+                state.page -= 1;
+                renderTable();
+            }
+        };
+        paginationContainer.appendChild(prevButton);
+        // Page selector (dropdown)
+        const pageSelect = document.createElement('select');
+        pageSelect.className = 'pagination-select';
+        for (let i = 1; i <= pages; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `Page ${i}`;
+            if (i === state.page) option.selected = true;
+            pageSelect.appendChild(option);
+        }
+        pageSelect.addEventListener('change', function() {
+            state.page = parseInt(this.value, 10);
+            renderTable();
+        });
+        paginationContainer.appendChild(pageSelect);
+        // Next button
+        const nextButton = document.createElement('button');
+        nextButton.textContent = '→';
+        nextButton.disabled = state.page === pages;
+        nextButton.onclick = () => {
+            if (state.page < pages) {
+                state.page += 1;
+                renderTable();
+            }
+        };
+        paginationContainer.appendChild(nextButton);
+        renderPageSizeSelector();
+    }
+
+    function renderPageSizeSelector() {
+        let pageSizeContainer = document.getElementById('pageSizeContainer');
+        if (!pageSizeContainer) {
+            pageSizeContainer = document.createElement('div');
+            pageSizeContainer.id = 'pageSizeContainer';
+            pageSizeContainer.className = 'pagination';
+            paginationContainer.parentNode.appendChild(pageSizeContainer);
+        }
+        pageSizeContainer.innerHTML = '';
+        const pageSizeSelect = document.createElement('select');
+        pageSizeSelect.className = 'pagination-select';
+        PAGE_SIZE_OPTIONS.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = `Page Size: ${opt}`;
+            if (opt === state.pageSize) option.selected = true;
+            pageSizeSelect.appendChild(option);
+        });
+        pageSizeSelect.addEventListener('change', function() {
+            state.pageSize = parseInt(this.value, 10);
+            state.page = 1;
+            renderTable();
+        });
+        pageSizeContainer.appendChild(pageSizeSelect);
+        pageSizeContainer.style.display = '';
+    }
+
+    // --- Table Filtering Logic ---
+    function filterProfiles(profiles) {
+        return profiles.filter(profile => {
+            if (state.filters.pubkey && !profile.pubkey.includes(state.filters.pubkey)) return false;
+            if (state.filters.minGrapeRank && Number(profile.grapeRankScore) < Number(state.filters.minGrapeRank)) return false;
+            if (state.filters.maxGrapeRank && Number(profile.grapeRankScore) > Number(state.filters.maxGrapeRank)) return false;
+            if (state.filters.minVerifiedCount && Number(profile.totalVerifiedCount) < Number(state.filters.minVerifiedCount)) return false;
+            if (state.filters.maxVerifiedCount && Number(profile.totalVerifiedCount) > Number(state.filters.maxVerifiedCount)) return false;
+            if (state.filters.minTotalCount && Number(profile.totalCount) < Number(state.filters.minTotalCount)) return false;
+            if (state.filters.maxTotalCount && Number(profile.totalCount) > Number(state.filters.maxTotalCount)) return false;
+            if (state.filters.minInfluence && Number(profile.influence) < Number(state.filters.minInfluence)) return false;
+            if (state.filters.maxInfluence && Number(profile.influence) > Number(state.filters.maxInfluence)) return false;
+            if (state.filters.minVerifiedFollowers && Number(profile.verifiedFollowerCount) < Number(state.filters.minVerifiedFollowers)) return false;
+            if (state.filters.maxVerifiedFollowers && Number(profile.verifiedFollowerCount) > Number(state.filters.maxVerifiedFollowers)) return false;
+            return true;
+        });
+    }
+
+    // --- Sorting and filter setup on load ---
+    document.addEventListener('DOMContentLoaded', function() {
+        loadColumnVisibility();
+        initColumnToggles();
+        document.getElementById('columnSettingsButton').onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const panel = document.getElementById('columnSettingsPanel');
+            panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+            // Hide info panel if open
+            document.getElementById('columnInfoPanel').style.display = 'none';
+        };
+        document.getElementById('columnInfoBtn').onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const panel = document.getElementById('columnInfoPanel');
+            panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+            // Hide settings panel if open
+            document.getElementById('columnSettingsPanel').style.display = 'none';
+        };
+        populateReportTypeSelector();
+        renderResultsIndicator(0, 0);
+        fetchProfiles();
+        const resetBtn = document.getElementById('resetColumnDefaultsBtn');
+        if (resetBtn) {
+            resetBtn.onclick = function() {
+                const isNarrow = window.innerWidth <= 700;
+                if (isNarrow) {
+                    columnVisibility = {
+                        pic: true,
+                        totalVerifiedCount: true,
+                        verifiedFollowerCount: true
+                    };
+                    // Set all others to false
+                    nip56Columns.forEach(col => {
+                        if (!(col.id in columnVisibility)) columnVisibility[col.id] = false;
+                    });
+                } else {
+                    nip56Columns.forEach(col => {
+                        columnVisibility[col.id] = true;
+                    });
+                }
+                saveColumnVisibility();
+                initColumnToggles();
+                renderTable();
+            };
+        }
+    });
+
+    // --- Event Listeners ---
+    reportTypeSelect.addEventListener('change', () => {
+        state.reportType = reportTypeSelect.value;
+        state.page = 1;
+        fetchProfiles();
+    });
+    </script>
+</body>
+</html>

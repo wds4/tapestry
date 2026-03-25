@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/css/customer-backup.css">
+    <link rel="shortcut icon" href="/img/brainstorm010.svg">
+
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <h1>Customer Backup</h1>
+      
+            <!-- Backup Mode Toggle -->
+            <div class="backup-mode-toggle">
+                <label class="toggle-label">Backup Mode:</label>
+                <div class="toggle-container">
+                    <input type="radio" id="backup-all" name="backup-mode" value="all" class="toggle-input">
+                    <label for="backup-all" class="toggle-option">All Customers</label>
+          
+                    <input type="radio" id="backup-one" name="backup-mode" value="one" class="toggle-input" checked>
+                    <label for="backup-one" class="toggle-option">One Customer at a Time</label>
+                    <span class="toggle-slider"></span>
+                </div>
+            </div>
+      
+            <!-- Customer Selector (visible when "One Customer" is selected) -->
+            <div id="customerSelectorRow" class="selection-row" aria-live="polite">
+                <label for="customerSelect" class="selector-label">Select Customer:</label>
+                <select id="customerSelect" class="selector-input">
+                    <option value="" disabled selected>Loading customers...</option>
+                </select>
+                <span id="customerSelectStatus" class="selector-status" role="status"></span>
+            </div>
+      
+            <p>Backup your customer data.</p>
+
+            <!-- Action Row: options + trigger -->
+            <div class="selection-row" id="backupActionRow">
+                <label class="selector-label" for="includeSecureKeys">Options:</label>
+                <div>
+                    <label style="display:inline-flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="includeSecureKeys">
+                        <span>Include secure keys manifest</span>
+                    </label>
+                    <label style="display:inline-flex; align-items:center; gap:6px; margin-left:12px;">
+                        <input type="checkbox" id="compressBackup">
+                        <span>Compress (.zip)</span>
+                    </label>
+                </div>
+                <button id="generateBackupBtn" class="btn-toggle" style="margin-left:auto;">Generate Backup</button>
+                <span id="backupActionStatus" class="selector-status" role="status"></span>
+            </div>
+
+            <!-- Available Backups -->
+            <div class="backup-list">
+                <div class="backup-list-header">
+                    <h2 class="backup-list-title">Available Backups (.zip)</h2>
+                    <div class="actions" style="display:flex; align-items:center; gap:8px;">
+                        <button id="refreshBackupsBtn" class="btn-toggle" type="button">Refresh</button>
+                    </div>
+                </div>
+                <div class="backup-base-dir">Location: <code id="backupsBaseDir"></code></div>
+                <div id="backupsContainer" class="backups-grid" aria-live="polite"></div>
+                <div id="backupsEmpty" class="selector-status" hidden>No .zip backups found.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the footer component -->
+    <div id="footerContainer"></div>
+
+    <!-- js -->
+    <script src="/components/header/header.js"></script>
+    <script src="/components/footer/footer.js"></script>
+    <script src="/js/customer-backup.js"></script>
+</body>
+</html>

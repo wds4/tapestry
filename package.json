@@ -1,0 +1,84 @@
+{
+  "name": "brainstorm",
+  "version": "0.0.1-alpha",
+  "description": "A Personalized Webs of Trust Nostr relay featuring the Grapevine",
+  "main": "index.js",
+  "bin": {
+    "brainstorm-publish": "./bin/publish.js",
+    "brainstorm-control-panel": "./bin/control-panel.js",
+    "brainstorm-install": "./bin/install.js",
+    "brainstorm-init-db": "./bin/init-db.sh"
+  },
+  "scripts": {
+    "test": "node test/test.js",
+    "test:playwright": "playwright test",
+    "test:playwright:ui": "playwright test --ui",
+    "test:playwright:headed": "playwright test --headed",
+    "publish": "node --expose-gc --max-old-space-size=4096 bin/publish.js",
+    "control-panel": "node bin/control-panel.js",
+    "install-brainstorm": "node bin/install.js",
+    "update": "node bin/update.js",
+    "uninstall": "bash bin/uninstall.sh",
+    "backup": "node bin/backup.js",
+    "restore-from-backup": "node bin/restore-from-backup.js",
+    "dev": "node bin/dev.js",
+    "test:deployment": "node bin/test-deployment.js",
+    "test:deployment:smoke": "node bin/test-deployment.js smoke",
+    "test:alert": "node bin/test-alert-webhook.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Prett-Good-Freedom-Tech/brainstorm.git"
+  },
+  "keywords": [
+    "nostr",
+    "nip85",
+    "trusted-assertions",
+    "social-graph",
+    "pagerank",
+    "graperank",
+    "grapevine",
+    "brainstorm",
+    "neo4j",
+    "strfry",
+    "web-of-trust",
+    "wot"
+  ],
+  "author": "Prett-Good-Freedom-Tech",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Prett-Good-Freedom-Tech/brainstorm/issues"
+  },
+  "homepage": "https://github.com/Prett-Good-Freedom-Tech/brainstorm#readme",
+  "dependencies": {
+    "@graperank/calculator": "^0.2.2",
+    "@nostr-dev-kit/ndk": "^2.12.0",
+    "adm-zip": "^0.5.16",
+    "ajv": "^8.18.0",
+    "archiver": "^7.0.1",
+    "chart.js": "^4.4.1",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "cors": "^2.8.5",
+    "d3": "^7.9.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "extract-zip": "^2.0.1",
+    "fs": "^0.0.1-security",
+    "lmdb": "^3.5.2",
+    "multer": "^1.4.5-lts.1",
+    "neo4j-driver": "^5.28.1",
+    "nostr-tools": "^2.10.4",
+    "proper-lockfile": "^4.1.2",
+    "typescript": "^5.8.2",
+    "websocket": "^1.0.35",
+    "websocket-polyfill": "^0.0.3",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/overview.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <!-- Load Chart.js before any scripts that use it -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+    
+    <div class="overview-container">
+        <h1>Brainstorm Instance Status Overview</h1>
+        
+        <button id="refreshButton" class="refresh-button">Refresh Data</button>
+        <div id="lastUpdated" class="last-updated">Last updated: Never</div>
+        
+        <!-- Strfry Section -->
+        <div class="overview-section" id="strfrySection">
+            <h2 class="section-title">Strfry Status</h2>
+            <div class="service-status" id="strfryServiceStatus">
+                <span class="status-indicator status-unknown"></span>
+                <span class="service-name">Service: </span>
+                <span class="service-state">checking...</span>
+            </div>
+            
+            <h3>Event Counts</h3>
+            <div class="grid-container">
+                <div class="stat-card">
+                    <div class="stat-title">Total Events</div>
+                    <div class="stat-value" id="totalEvents">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Recent (1h)</div>
+                    <div class="stat-value" id="recentEvents">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Profiles (Kind 0)</div>
+                    <div class="stat-value" id="profilesCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Notes (Kind 1)</div>
+                    <div class="stat-value" id="notesCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Follows (Kind 3)</div>
+                    <div class="stat-value" id="followsCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Reactions (Kind 7)</div>
+                    <div class="stat-value" id="reactionsCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Reports (Kind 1984)</div>
+                    <div class="stat-value" id="reportsCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Mutes (Kind 10000)</div>
+                    <div class="stat-value" id="mutesCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Wiki (Kind 30818)</div>
+                    <div class="stat-value" id="wikiCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">NIP-85 (Kind 10040)</div>
+                    <div class="stat-value" id="nip85Count">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Neo4j Section -->
+        <div class="overview-section" id="neo4jSection">
+            <h2 class="section-title">Neo4j Status</h2>
+            <div class="service-status" id="neo4jServiceStatus">
+                <span class="status-indicator status-unknown"></span>
+                <span class="service-name">Service: </span>
+                <span class="service-state">checking...</span>
+            </div>
+            
+            <div class="grid-container">
+                <div class="stat-card">
+                    <div class="stat-title">Constraints</div>
+                    <div class="stat-value" id="neo4jConstraints">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Indexes</div>
+                    <div class="stat-value" id="neo4jIndexes">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Users</div>
+                    <div class="stat-value" id="totalUsers">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Relationships</div>
+                    <div class="stat-value" id="totalRelationships">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">FOLLOWS Relationships</div>
+                    <div class="stat-value" id="followsRelationships">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">REPORTS Relationships</div>
+                    <div class="stat-value" id="reportsRelationships">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">MUTES Relationships</div>
+                    <div class="stat-value" id="mutesRelationships">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Recent Relationships (1h)</div>
+                    <div class="stat-value" id="recentRelationships">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Whitelist & Blacklist Section -->
+        <div class="overview-section" id="listsSection">
+            <h2 class="section-title">Whitelist & Blacklist</h2>
+            <div class="grid-container">
+                <div class="stat-card">
+                    <div class="stat-title">Whitelist Count</div>
+                    <div class="stat-value" id="whitelistCount">-</div>
+                    <div class="timestamp" id="whitelistTimestamp">Last updated: -</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Blacklist Count</div>
+                    <div class="stat-value" id="blacklistCount">-</div>
+                    <div class="timestamp" id="blacklistTimestamp">Last updated: -</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ranking Algorithms Section -->
+        <div class="overview-section" id="rankingSection">
+            <h2 class="section-title">Ranking Algorithms</h2>
+            <div class="grid-container">
+                <div class="stat-card">
+                    <div class="stat-title">GrapeRank Verified Users</div>
+                    <div class="stat-value" id="verifiedUsers">-</div>
+                    <div class="timestamp" id="grapeRankTimestamp">Last updated: -</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">PageRank</div>
+                    <div class="stat-value">-</div>
+                    <div class="timestamp" id="pageRankTimestamp">Last updated: -</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Follows Network Section -->
+        <div class="overview-section" id="networkSection">
+            <h2 class="section-title">Follows Network</h2>
+            <div class="timestamp" id="followsNetworkTimestamp">Last calculated: -</div>
+            
+            <canvas class="hops-chart" id="hopsChart"></canvas>
+            
+            <div class="grid-container">
+                <div class="stat-card">
+                    <div class="stat-title">0 Hops (Self)</div>
+                    <div class="stat-value" id="hops0Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">1 Hop</div>
+                    <div class="stat-value" id="hops1Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">2 Hops</div>
+                    <div class="stat-value" id="hops2Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">3 Hops</div>
+                    <div class="stat-value" id="hops3Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">4 Hops</div>
+                    <div class="stat-value" id="hops4Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">5 Hops</div>
+                    <div class="stat-value" id="hops5Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">6 Hops</div>
+                    <div class="stat-value" id="hops6Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">7 Hops</div>
+                    <div class="stat-value" id="hops7Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">8 Hops</div>
+                    <div class="stat-value" id="hops8Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">9 Hops</div>
+                    <div class="stat-value" id="hops9Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">10 Hops</div>
+                    <div class="stat-value" id="hops10Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Disconnected</div>
+                    <div class="stat-value" id="hops999Count">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Connected Network</div>
+                    <div class="stat-value" id="followsNetworkTotal">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>        
+        // Function to format timestamp
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '-';
+            
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString();
+        }
+        
+        // Function to format large numbers with comma separators
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+        
+        // Initialize hops chart
+        let hopsChart;
+        
+        function initializeHopsChart(data) {
+            try {
+                const chartElement = document.getElementById('hopsChart');
+                
+                if (!chartElement) {
+                    console.error('Chart element not found');
+                    return;
+                }
+                
+                // Check if it's a canvas element
+                if (!(chartElement instanceof HTMLCanvasElement)) {
+                    console.error('Element is not a canvas:', chartElement);
+                    return;
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                
+                if (!ctx) {
+                    console.error('Failed to get 2d context');
+                    return;
+                }
+                
+                // Destroy existing chart if it exists
+                if (hopsChart) {
+                    hopsChart.destroy();
+                }
+                
+                const hopLabels = ['0 Hops (Self)', '1 Hop', '2 Hops', '3 Hops', '4 Hops', '5 Hops', '6 Hops', '7 Hops', '8 Hops', '9 Hops', '10 Hops', 'Disconnected'];
+                const hopData = [
+                    data.followsNetwork.byHops[0],
+                    data.followsNetwork.byHops[1],
+                    data.followsNetwork.byHops[2],
+                    data.followsNetwork.byHops[3],
+                    data.followsNetwork.byHops[4],
+                    data.followsNetwork.byHops[5],
+                    data.followsNetwork.byHops[6],
+                    data.followsNetwork.byHops[7],
+                    data.followsNetwork.byHops[8],
+                    data.followsNetwork.byHops[9],
+                    data.followsNetwork.byHops[10],
+                    data.followsNetwork.byHops[999]
+                ];
+                
+                hopsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: hopLabels,
+                        datasets: [{
+                            label: 'Users by Hops',
+                            data: hopData,
+                            backgroundColor: [
+                                '#3498db',
+                                '#2ecc71',
+                                '#9b59b6',
+                                '#e67e22',
+                                '#e74c3c',
+                                '#95a5a6',
+                                '#4e5154',
+                                '#2f4f7f',
+                                '#66d9ef',
+                                '#8bc34a',
+                                '#f1c40f',
+                                '#e74c3c'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing hops chart:', error);
+            }
+        }
+        
+        // Function to update the UI with the instance status data
+        function updateUI(data) {
+            console.log('Updating UI with data:', data);
+            
+            // Update last updated timestamp
+            document.getElementById('lastUpdated').textContent = `Last updated: ${formatTimestamp(data.timestamp)}`;
+            
+            // Update Strfry section
+            const strfryStatus = data.strfry.service.status;
+            const strfryStatusIndicator = document.querySelector('#strfryServiceStatus .status-indicator');
+            const strfryStatusText = document.querySelector('#strfryServiceStatus .service-state');
+            
+            strfryStatusIndicator.className = `status-indicator status-${strfryStatus === 'running' ? 'running' : 'stopped'}`;
+            strfryStatusText.textContent = strfryStatus;
+            
+            // Update event counts - handle both array and object format for byKind
+            const byKind = data.strfry.events.byKind;
+            document.getElementById('totalEvents').textContent = formatNumber(data.strfry.events.total);
+            document.getElementById('recentEvents').textContent = formatNumber(data.strfry.events.recent);
+            
+            // Determine if byKind is an array or object and access accordingly
+            if (Array.isArray(byKind)) {
+                document.getElementById('profilesCount').textContent = formatNumber(byKind[0]);
+                document.getElementById('notesCount').textContent = formatNumber(byKind[1]);
+                document.getElementById('followsCount').textContent = formatNumber(byKind[3]);
+                document.getElementById('reactionsCount').textContent = formatNumber(byKind[7]);
+                document.getElementById('reportsCount').textContent = formatNumber(byKind[1984]);
+                document.getElementById('mutesCount').textContent = formatNumber(byKind[10000]);
+                document.getElementById('wikiCount').textContent = formatNumber(byKind[30818]);
+                document.getElementById('nip85Count').textContent = formatNumber(byKind[10040]);
+            } else {
+                document.getElementById('profilesCount').textContent = formatNumber(byKind['0']);
+                document.getElementById('notesCount').textContent = formatNumber(byKind['1']);
+                document.getElementById('followsCount').textContent = formatNumber(byKind['3']);
+                document.getElementById('reactionsCount').textContent = formatNumber(byKind['7']);
+                document.getElementById('reportsCount').textContent = formatNumber(byKind['1984']);
+                document.getElementById('mutesCount').textContent = formatNumber(byKind['10000']);
+                document.getElementById('wikiCount').textContent = formatNumber(byKind['30818']);
+                document.getElementById('nip85Count').textContent = formatNumber(byKind['10040']);
+            }
+            
+            // Update Neo4j section
+            const neo4jStatus = data.neo4j.service.status;
+            const neo4jStatusIndicator = document.querySelector('#neo4jServiceStatus .status-indicator');
+            const neo4jStatusText = document.querySelector('#neo4jServiceStatus .service-state');
+            
+            neo4jStatusIndicator.className = `status-indicator status-${neo4jStatus === 'running' ? 'running' : 'stopped'}`;
+            neo4jStatusText.textContent = neo4jStatus;
+            
+            document.getElementById('neo4jConstraints').textContent = data.neo4j.constraints.status;
+            document.getElementById('neo4jIndexes').textContent = data.neo4j.indexes.status;
+            document.getElementById('totalUsers').textContent = formatNumber(data.neo4j.users.total);
+            document.getElementById('totalRelationships').textContent = formatNumber(data.neo4j.relationships.total);
+            document.getElementById('followsRelationships').textContent = formatNumber(data.neo4j.relationships.follows);
+            document.getElementById('reportsRelationships').textContent = formatNumber(data.neo4j.relationships.reports);
+            document.getElementById('mutesRelationships').textContent = formatNumber(data.neo4j.relationships.mutes);
+            document.getElementById('recentRelationships').textContent = formatNumber(data.neo4j.relationships.recent);
+            
+            // Update Whitelist & Blacklist section
+            document.getElementById('whitelistCount').textContent = formatNumber(data.whitelist.count);
+            document.getElementById('whitelistTimestamp').textContent = `Last updated: ${formatTimestamp(data.whitelist.lastUpdated)}`;
+            document.getElementById('blacklistCount').textContent = formatNumber(data.blacklist.count);
+            document.getElementById('blacklistTimestamp').textContent = `Last updated: ${formatTimestamp(data.blacklist.lastUpdated)}`;
+            
+            // Update Ranking Algorithms section
+            document.getElementById('verifiedUsers').textContent = formatNumber(data.grapeRank.verifiedUsers);
+            document.getElementById('grapeRankTimestamp').textContent = `Last updated: ${formatTimestamp(data.grapeRank.lastUpdated)}`;
+            document.getElementById('pageRankTimestamp').textContent = `Last updated: ${formatTimestamp(data.pageRank.lastUpdated)}`;
+            
+            // Update Follows Network section - handle different property names
+            const lastCalculated = data.followsNetwork.lastCalculated;
+            document.getElementById('followsNetworkTimestamp').textContent = `Last calculated: ${formatTimestamp(lastCalculated)}`;
+            
+            const networkByHops = data.followsNetwork.byHops;
+            document.getElementById('hops0Count').textContent = formatNumber(networkByHops['0']);
+            document.getElementById('hops1Count').textContent = formatNumber(networkByHops['1']);
+            document.getElementById('hops2Count').textContent = formatNumber(networkByHops['2']);
+            document.getElementById('hops3Count').textContent = formatNumber(networkByHops['3']);
+            document.getElementById('hops4Count').textContent = formatNumber(networkByHops['4']);
+            document.getElementById('hops5Count').textContent = formatNumber(networkByHops['5']);
+            document.getElementById('hops6Count').textContent = formatNumber(networkByHops['6']);
+            document.getElementById('hops7Count').textContent = formatNumber(networkByHops['7']);
+            document.getElementById('hops8Count').textContent = formatNumber(networkByHops['8']);
+            document.getElementById('hops9Count').textContent = formatNumber(networkByHops['9']);
+            document.getElementById('hops10Count').textContent = formatNumber(networkByHops['10']);
+            document.getElementById('hops999Count').textContent = formatNumber(networkByHops['999']);
+            document.getElementById('followsNetworkTotal').textContent = formatNumber(data.followsNetwork.total);
+            
+            // Initialize or update the hops chart
+            initializeHopsChart(data);
+        }
+        
+        // Function to fetch instance status data from the API
+        function fetchInstanceStatus() {
+            console.log('Fetching instance status data from modular endpoints...');
+            
+            // Determine if we're in the /control/ path
+            const isControlPath = window.location.pathname.startsWith('/control/');
+            const apiBaseUrl = isControlPath ? 
+                window.location.origin + '/control/api/' : 
+                window.location.origin + '/api/';
+            
+            // Update last updated timestamp
+            document.getElementById('lastUpdated').textContent = `Last updated: ${formatTimestamp(Math.floor(Date.now() / 1000))}`;
+            
+            // Define all the endpoints to fetch and their corresponding update functions
+            const endpointConfigs = [
+                {
+                    endpoint: 'strfry-status',
+                    updateFn: updateStrfrySection
+                },
+                {
+                    endpoint: 'neo4j-status',
+                    updateFn: updateNeo4jSection
+                },
+                {
+                    endpoint: 'list-status',
+                    updateFn: updateListsSection
+                },
+                {
+                    endpoint: 'ranking-status',
+                    updateFn: updateRankingSection
+                },
+                {
+                    endpoint: 'network-status',
+                    updateFn: updateNetworkSection
+                }
+            ];
+            
+            // Fetch and update each section independently
+            endpointConfigs.forEach(config => {
+                const url = apiBaseUrl + config.endpoint;
+                console.log(`Fetching from: ${url}`);
+                
+                // Set loading indicator for this section
+                setLoadingState(config.endpoint, true);
+                
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status} for ${config.endpoint}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log(`Received data for ${config.endpoint}:`, data);
+                        // Update the corresponding section in the UI
+                        config.updateFn(data);
+                        // Clear loading indicator
+                        setLoadingState(config.endpoint, false);
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching ${config.endpoint}:`, error);
+                        // Show error in the UI for this section
+                        showSectionError(config.endpoint, error.message);
+                        // Clear loading indicator
+                        setLoadingState(config.endpoint, false);
+                    });
+            });
+        }
+        
+        // Helper function to set loading state for a section
+        function setLoadingState(endpoint, isLoading) {
+            const sectionMap = {
+                'strfry-status': 'strfrySection',
+                'neo4j-status': 'neo4jSection',
+                'list-status': 'listsSection',
+                'ranking-status': 'rankingSection',
+                'network-status': 'networkSection'
+            };
+            
+            const sectionId = sectionMap[endpoint];
+            if (!sectionId) return;
+            
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            
+            if (isLoading) {
+                section.classList.add('loading');
+            } else {
+                section.classList.remove('loading');
+            }
+        }
+        
+        // Helper function to show error in a section
+        function showSectionError(endpoint, errorMessage) {
+            const sectionMap = {
+                'strfry-status': 'strfrySection',
+                'neo4j-status': 'neo4jSection',
+                'list-status': 'listsSection',
+                'ranking-status': 'rankingSection',
+                'network-status': 'networkSection'
+            };
+            
+            const sectionId = sectionMap[endpoint];
+            if (!sectionId) return;
+            
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            
+            section.classList.add('error');
+            
+            // Find or create an error message element
+            let errorElement = section.querySelector('.section-error');
+            if (!errorElement) {
+                errorElement = document.createElement('div');
+                errorElement.className = 'section-error';
+                section.appendChild(errorElement);
+            }
+            
+            errorElement.textContent = `Error: ${errorMessage}`;
+        }
+        
+        // Function to update the Strfry section
+        function updateStrfrySection(data) {
+            // Update Strfry service status
+            const strfryStatus = data.service.status;
+            const strfryStatusIndicator = document.querySelector('#strfryServiceStatus .status-indicator');
+            const strfryStatusText = document.querySelector('#strfryServiceStatus .service-state');
+            
+            strfryStatusIndicator.className = `status-indicator status-${strfryStatus === 'running' ? 'running' : 'stopped'}`;
+            strfryStatusText.textContent = strfryStatus;
+            
+            // Update event counts
+            const byKind = data.events.byKind;
+            document.getElementById('totalEvents').textContent = formatNumber(data.events.total);
+            document.getElementById('recentEvents').textContent = formatNumber(data.events.recent);
+            
+            // Determine if byKind is an array or object and access accordingly
+            if (Array.isArray(byKind)) {
+                document.getElementById('profilesCount').textContent = formatNumber(byKind[0]);
+                document.getElementById('notesCount').textContent = formatNumber(byKind[1]);
+                document.getElementById('followsCount').textContent = formatNumber(byKind[3]);
+                document.getElementById('reactionsCount').textContent = formatNumber(byKind[7]);
+                document.getElementById('reportsCount').textContent = formatNumber(byKind[1984]);
+                document.getElementById('mutesCount').textContent = formatNumber(byKind[10000]);
+                document.getElementById('wikiCount').textContent = formatNumber(byKind[30818]);
+                document.getElementById('nip85Count').textContent = formatNumber(byKind[10040]);
+            } else {
+                document.getElementById('profilesCount').textContent = formatNumber(byKind['0']);
+                document.getElementById('notesCount').textContent = formatNumber(byKind['1']);
+                document.getElementById('followsCount').textContent = formatNumber(byKind['3']);
+                document.getElementById('reactionsCount').textContent = formatNumber(byKind['7']);
+                document.getElementById('reportsCount').textContent = formatNumber(byKind['1984']);
+                document.getElementById('mutesCount').textContent = formatNumber(byKind['10000']);
+                document.getElementById('wikiCount').textContent = formatNumber(byKind['30818']);
+                document.getElementById('nip85Count').textContent = formatNumber(byKind['10040']);
+            }
+        }
+        
+        // Function to update the Neo4j section
+        function updateNeo4jSection(data) {
+            console.log(`data: ${JSON.stringify(data, null, 2)}`)
+
+            // Update Neo4j service status
+            const neo4jStatus = data.status.running;
+            const neo4jStatusIndicator = document.querySelector('#neo4jServiceStatus .status-indicator');
+            const neo4jStatusText = document.querySelector('#neo4jServiceStatus .service-state');
+            
+            // neo4jStatusIndicator.className = `status-indicator status-${neo4jStatus === 'running' ? 'running' : 'stopped'}`;
+            neo4jStatusText.textContent = neo4jStatus;
+            document.getElementById('totalUsers').textContent = formatNumber(data.status.userCount);
+            document.getElementById('followsRelationships').textContent = formatNumber(data.status.relationships.follow);
+            document.getElementById('reportsRelationships').textContent = formatNumber(data.status.relationships.report);
+            document.getElementById('mutesRelationships').textContent = formatNumber(data.status.relationships.mute);
+            /*
+            document.getElementById('neo4jConstraints').textContent = data.neo4j.constraints.status;
+            document.getElementById('neo4jIndexes').textContent = data.neo4j.indexes.status;
+            document.getElementById('totalRelationships').textContent = formatNumber(data.neo4j.relationships.total);
+            document.getElementById('recentRelationships').textContent = formatNumber(data.neo4j.relationships.recent);
+            */
+        }
+        
+        // Function to update the Lists section (whitelist & blacklist)
+        function updateListsSection(data) {
+            document.getElementById('whitelistCount').textContent = formatNumber(data.whitelist.count);
+            document.getElementById('whitelistTimestamp').textContent = `Last updated: ${formatTimestamp(data.whitelist.lastUpdated)}`;
+            document.getElementById('blacklistCount').textContent = formatNumber(data.blacklist.count);
+            document.getElementById('blacklistTimestamp').textContent = `Last updated: ${formatTimestamp(data.blacklist.lastUpdated)}`;
+        }
+        
+        // Function to update the Ranking section
+        function updateRankingSection(data) {
+            document.getElementById('verifiedUsers').textContent = formatNumber(data.grapeRank.verifiedUsers);
+            document.getElementById('grapeRankTimestamp').textContent = `Last updated: ${formatTimestamp(data.grapeRank.lastUpdated)}`;
+            document.getElementById('pageRankTimestamp').textContent = `Last updated: ${formatTimestamp(data.pageRank.lastUpdated)}`;
+        }
+        
+        // Function to update the Network section
+        function updateNetworkSection(data) {
+            const lastCalculated = data.lastCalculated;
+            document.getElementById('followsNetworkTimestamp').textContent = `Last calculated: ${formatTimestamp(lastCalculated)}`;
+            
+            const networkByHops = data.byHops;
+            document.getElementById('hops0Count').textContent = formatNumber(networkByHops['0']);
+            document.getElementById('hops1Count').textContent = formatNumber(networkByHops['1']);
+            document.getElementById('hops2Count').textContent = formatNumber(networkByHops['2']);
+            document.getElementById('hops3Count').textContent = formatNumber(networkByHops['3']);
+            document.getElementById('hops4Count').textContent = formatNumber(networkByHops['4']);
+            document.getElementById('hops5Count').textContent = formatNumber(networkByHops['5']);
+            document.getElementById('hops6Count').textContent = formatNumber(networkByHops['6']);
+            document.getElementById('hops7Count').textContent = formatNumber(networkByHops['7']);
+            document.getElementById('hops8Count').textContent = formatNumber(networkByHops['8']);
+            document.getElementById('hops9Count').textContent = formatNumber(networkByHops['9']);
+            document.getElementById('hops10Count').textContent = formatNumber(networkByHops['10']);
+            document.getElementById('hops999Count').textContent = formatNumber(networkByHops['999']);
+            document.getElementById('followsNetworkTotal').textContent = formatNumber(data.total);
+            
+            // Update the hops chart
+            updateHopsChart(data);
+        }
+        
+        // Function to update the hops chart
+        function updateHopsChart(data) {
+            try {
+                const chartElement = document.getElementById('hopsChart');
+                
+                if (!chartElement) {
+                    console.error('Chart element not found');
+                    return;
+                }
+                
+                // Check if it's a canvas element
+                if (!(chartElement instanceof HTMLCanvasElement)) {
+                    console.error('Element is not a canvas:', chartElement);
+                    return;
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                
+                if (!ctx) {
+                    console.error('Failed to get 2d context');
+                    return;
+                }
+                
+                // Safely destroy existing chart if it exists
+                if (window.hopsChart && typeof window.hopsChart.destroy === 'function') {
+                    window.hopsChart.destroy();
+                }
+                
+                const networkByHops = data.byHops;
+                
+                const hopLabels = ['0 Hops (Self)', '1 Hop', '2 Hops', '3 Hops', '4 Hops', '5 Hops', '6 Hops', '7 Hops', '8 Hops', '9 Hops', '10 Hops', 'Disconnected'];
+                const hopData = [
+                    networkByHops['0'] || 0,
+                    networkByHops['1'] || 0,
+                    networkByHops['2'] || 0,
+                    networkByHops['3'] || 0,
+                    networkByHops['4'] || 0,
+                    networkByHops['5'] || 0,
+                    networkByHops['6'] || 0,
+                    networkByHops['7'] || 0,
+                    networkByHops['8'] || 0,
+                    networkByHops['9'] || 0,
+                    networkByHops['10'] || 0,
+                    networkByHops['999'] || 0
+                ];
+                
+                // Debugging log to help diagnose issues
+                console.log('Creating chart with data:', {
+                    labels: hopLabels,
+                    data: hopData,
+                    networkByHops: networkByHops
+                });
+                
+                window.hopsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: hopLabels,
+                        datasets: [{
+                            label: 'Users by Hops',
+                            data: hopData,
+                            backgroundColor: [
+                                '#3498db',  // Blue
+                                '#2ecc71',  // Green
+                                '#9b59b6',  // Purple
+                                '#e67e22',  // Orange
+                                '#e74c3c',  // Red
+                                '#95a5a6',  // Gray
+                                '#4e5154',  // Dark Gray
+                                '#2f4f7f',  // Dark Blue
+                                '#66d9ef',  // Light Blue
+                                '#8bc34a',  // Light Green
+                                '#f1c40f',  // Yellow
+                                '#e74c3c'   // Red
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating hops chart:', error);
+            }
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch initial data
+            fetchInstanceStatus();
+            
+            // Set up refresh button
+            document.getElementById('refreshButton').addEventListener('click', fetchInstanceStatus);
+            
+            // Set up auto-refresh every 5 minutes
+            setInterval(fetchInstanceStatus, 300000);
+        });
+    </script>
+</body>
+</html>

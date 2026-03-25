@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/grapevine-analysis.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Modern Card-style Header for Analysis -->
+    <div class="analysis-header-card analysis-header-flex">
+      <div class="analysis-header-main">
+        <div id="interactionTypeHeader"></div>
+      </div>
+      <button id="toggleCypherBtn" class="secondary">Show Cypher Query</button>
+    </div>
+    <pre id="cypherQueryBox" style="display:none;background:#fafbfc;border:1px solid #ddd;padding:12px 14px;font-size:1em;margin-bottom:10px;overflow-x:auto;max-width:100%;white-space:pre-wrap;word-break:break-all;"></pre>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="results-row" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; overflow:hidden">
+                <div id="resultsIndicator" style="margin: 10px 0 10px 0; font-weight: bold;"></div>
+                <div class="column-panel-controls" style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 600; font-size: 1.03em; letter-spacing: 0.01em;">Columns</span>
+                    <button id="columnSettingsButton" class="secondary" title="Toggle column visibility" style="font-size: 1.06em; padding: 4px 4px; min-width: 32px;">+</button>
+                </div>
+            </div>
+            <div id="columnSettingsPanel" class="panel" style="display: none; margin-bottom: 10px;">
+                <h3>Column Visibility</h3>
+                <div id="columnToggles"></div>
+                <button id="resetColumnDefaultsBtn" class="secondary" style="margin-top: 10px;">Reset Defaults</button>
+            </div>
+            <div id="tableContainer">
+                <div id="loadingIndicator" class="loading"></div>
+                <table id="grapevineProfilesTable" style="display: none;">
+                    <thead>
+                        <tr class="header-row"></tr>
+                        <tr class="filter-row"></tr>
+                    </thead>
+                    <tbody id="grapevineProfilesTableBody"></tbody>
+                </table>
+                <div id="paginationContainer" class="pagination" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+    <script>
+    // --- Column Definitions ---
+    const grapevineColumns = [
+        { id: 'pic', label: 'Pic', visible: true },
+        { id: 'pubkey', label: 'Pubkey', visible: true },
+        { id: 'hops', label: 'Hops', visible: true },
+        { id: 'influence', label: '🍇-Rank', visible: true }
+    ];
+    let columnVisibility = {};
+    function loadColumnVisibility() {
+        const saved = localStorage.getItem('grapevineColumnVisibility');
+        if (saved) {
+            columnVisibility = JSON.parse(saved);
+        } else {
+            grapevineColumns.forEach(col => { columnVisibility[col.id] = col.visible; });
+        }
+    }
+    function saveColumnVisibility() {
+        localStorage.setItem('grapevineColumnVisibility', JSON.stringify(columnVisibility));
+    }
+    function initColumnToggles() {
+        const togglesDiv = document.getElementById('columnToggles');
+        togglesDiv.innerHTML = '';
+        grapevineColumns.forEach((col, idx) => {
+            const label = document.createElement('label');
+            label.style.display = 'block';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = columnVisibility[col.id];
+            checkbox.addEventListener('change', function() {
+                columnVisibility[col.id] = this.checked;
+                saveColumnVisibility();
+                renderTable();
+            });
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(' ' + col.label));
+            togglesDiv.appendChild(label);
+        });
+    }
+    function toggleColumnSettingsPanel() {
+        const panel = document.getElementById('columnSettingsPanel');
+        panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+    }
+    document.getElementById('columnSettingsButton').onclick = toggleColumnSettingsPanel;
+    document.getElementById('resetColumnDefaultsBtn').onclick = function() {
+        grapevineColumns.forEach(col => { columnVisibility[col.id] = col.visible; });
+        saveColumnVisibility();
+        renderTable();
+    };
+    // --- Sorting ---
+    let sortBy = 'influence';
+    let sortOrder = 'desc';
+    function sortData(data) {
+        return [...data].sort((a, b) => {
+            let va = a[sortBy], vb = b[sortBy];
+            // Numeric fallback for undefined/null
+            if (typeof va === 'string' && !isNaN(parseFloat(va)) && isFinite(va)) va = parseFloat(va);
+            if (typeof vb === 'string' && !isNaN(parseFloat(vb)) && isFinite(vb)) vb = parseFloat(vb);
+            if (va === undefined || va === null || (typeof va === 'number' && isNaN(va))) va = -Infinity;
+            if (vb === undefined || vb === null || (typeof vb === 'number' && isNaN(vb))) vb = -Infinity;
+            if (typeof va === 'string' && typeof vb === 'string') {
+                va = va.toLowerCase();
+                vb = vb.toLowerCase();
+            }
+            if (va < vb) return sortOrder === 'asc' ? -1 : 1;
+            if (va > vb) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+    // --- Filtering ---
+    let filters = { pubkey: '', hopsMin: '', hopsMax: '', influenceMin: '', influenceMax: '' };
+    function filterData(data) {
+        return data.filter(row => {
+            // Pubkey text filter
+            if (filters.pubkey && !row.pubkey.includes(filters.pubkey)) return false;
+            // Hops min/max
+            if (filters.hopsMin !== '' && !(typeof row.hops === 'number' && row.hops >= parseFloat(filters.hopsMin))) return false;
+            if (filters.hopsMax !== '' && !(typeof row.hops === 'number' && row.hops <= parseFloat(filters.hopsMax))) return false;
+            // Influence min/max (custom parse for decimals)
+            if (filters.influenceMin !== '' && (isNaN(parseFloat(filters.influenceMin)) || !(typeof row.influence === 'number' && row.influence >= parseFloat(filters.influenceMin)))) return false;
+            if (filters.influenceMax !== '' && (isNaN(parseFloat(filters.influenceMax)) || !(typeof row.influence === 'number' && row.influence <= parseFloat(filters.influenceMax)))) return false;
+            return true;
+        });
+    }
+    // --- Pagination ---
+    const DEFAULT_PAGE_SIZE = 50;
+    const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+    let page = 1;
+    let pageSize = DEFAULT_PAGE_SIZE;
+    function renderPagination(total, pages) {
+        const container = document.getElementById('paginationContainer');
+        container.innerHTML = '';
+        if (pages <= 1) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = '';
+        // Previous button
+        const prevButton = document.createElement('button');
+        prevButton.textContent = '←';
+        prevButton.disabled = page === 1;
+        prevButton.onclick = function() {
+            if (page > 1) {
+                page -= 1;
+                renderTable();
+            }
+        };
+        container.appendChild(prevButton);
+        // Page selector (dropdown)
+        const pageSelect = document.createElement('select');
+        pageSelect.className = 'pagination-select';
+        for (let i = 1; i <= pages; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `Page ${i}`;
+            if (i === page) option.selected = true;
+            pageSelect.appendChild(option);
+        }
+        pageSelect.addEventListener('change', function() {
+            page = parseInt(this.value, 10);
+            renderTable();
+        });
+        container.appendChild(pageSelect);
+        // Next button
+        const nextButton = document.createElement('button');
+        nextButton.textContent = '→';
+        nextButton.disabled = page === pages;
+        nextButton.onclick = function() {
+            if (page < pages) {
+                page += 1;
+                renderTable();
+            }
+        };
+        container.appendChild(nextButton);
+        // Page Size selector
+        const pageSizeSelect = document.createElement('select');
+        pageSizeSelect.id = 'pageSizeSelect';
+        PAGE_SIZE_OPTIONS.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = `Page Size: ${opt}`;
+            if (opt === pageSize) option.selected = true;
+            pageSizeSelect.appendChild(option);
+        });
+        pageSizeSelect.addEventListener('change', function() {
+            pageSize = parseInt(this.value, 10);
+            page = 1;
+            renderTable();
+        });
+        container.appendChild(pageSizeSelect);
+    }
+    // --- Profile Picture Cache (shared pattern) ---
+    const profileCache = {};
+    function loadProfilePicture(pubkey, imgElement) {
+        if (profileCache[pubkey] && profileCache[pubkey].pictureLoaded) {
+            // Already loaded, just update
+            updateProfilePictureWithData(imgElement, profileCache[pubkey]);
+            return;
+        }
+        fetch(`/control/api/get-kind0?pubkey=${pubkey}`)
+            .then(response => response.json())
+            .then(data => {
+                let profileData = null;
+                if (data.success && data.data && data.data.content) {
+                    try {
+                        profileData = JSON.parse(data.data.content);
+                    } catch (e) {
+                        // Ignore parse errors
+                    }
+                }
+                profileData = profileData || {};
+                profileData.pubkey = pubkey;
+                if (!('picture' in profileData)) profileData.picture = undefined;
+                if (!('name' in profileData)) profileData.name = undefined;
+                if (!('display_name' in profileData)) profileData.display_name = undefined;
+                profileData.pictureLoaded = true;
+                profileCache[pubkey] = profileData;
+                updateProfilePictureWithData(imgElement, profileData);
+            })
+            .catch(() => {
+                // On error, store a stub
+                profileCache[pubkey] = { pubkey, picture: undefined, name: undefined, display_name: undefined, pictureLoaded: true };
+                updateProfilePictureWithData(imgElement, profileCache[pubkey]);
+            });
+    }
+    function updateProfilePictureWithData(imgElement, profileData) {
+        // Remove any previous sibling placeholder
+        if (imgElement.nextSibling && imgElement.nextSibling.classList && imgElement.nextSibling.classList.contains('default-profile-pic')) {
+            imgElement.parentNode.removeChild(imgElement.nextSibling);
+        }
+        // Remove any previous placeholder in the parent
+        if (imgElement.parentNode) {
+            Array.from(imgElement.parentNode.children).forEach(child => {
+                if (child !== imgElement && child.classList && child.classList.contains('default-profile-pic')) {
+                    imgElement.parentNode.removeChild(child);
+                }
+            });
+        }
+        if (profileData && profileData.picture) {
+            imgElement.src = profileData.picture;
+            imgElement.title = profileData.display_name || profileData.name || '';
+            imgElement.style.display = '';
+            imgElement.onerror = function() {
+                imgElement.style.display = 'none';
+                if (profileData && profileData.pubkey) {
+                    if (!profileCache[profileData.pubkey]) profileCache[profileData.pubkey] = {};
+                    profileCache[profileData.pubkey].pictureFailed = true;
+                }
+                if (imgElement.parentNode) {
+                    Array.from(imgElement.parentNode.children).forEach(child => {
+                        if (child.classList && child.classList.contains('default-profile-pic')) {
+                            imgElement.parentNode.removeChild(child);
+                        }
+                    });
+                }
+                // Optionally add a default avatar here
+                imgElement.src = '/control/img/default-avatar.svg';
+                imgElement.style.display = '';
+            };
+        } else {
+            imgElement.src = '/control/img/default-avatar.svg';
+            imgElement.title = '';
+            imgElement.style.display = '';
+        }
+    }
+    // --- Table Rendering (with Pagination) ---
+    let allProfiles = [];
+    function renderTable() {
+        const table = document.getElementById('grapevineProfilesTable');
+        const headerRow = table.querySelector('.header-row');
+        const filterRow = table.querySelector('.filter-row');
+        const tbody = document.getElementById('grapevineProfilesTableBody');
+        // Build headers
+        headerRow.innerHTML = '';
+        grapevineColumns.forEach(col => {
+            if (!columnVisibility[col.id]) return;
+            const th = document.createElement('th');
+            th.textContent = col.label;
+            if (col.id === 'pic') th.style.width = '44px';
+            th.style.cursor = 'pointer';
+            th.onclick = function() {
+                if (sortBy === col.id) sortOrder = (sortOrder === 'asc' ? 'desc' : 'asc');
+                else { sortBy = col.id; sortOrder = 'desc'; }
+                renderTable();
+            };
+            // Sorting indicator
+            if (sortBy === col.id) {
+                const arrow = document.createElement('span');
+                arrow.style.marginLeft = '6px';
+                arrow.style.fontSize = '1em';
+                arrow.textContent = sortOrder === 'asc' ? '▲' : '▼';
+                th.appendChild(arrow);
+                th.classList.add('sorted-' + sortOrder);
+            }
+            headerRow.appendChild(th);
+        });
+        // Build filter row
+        filterRow.innerHTML = '';
+        grapevineColumns.forEach(col => {
+            if (!columnVisibility[col.id]) return;
+            const th = document.createElement('th');
+            if (col.id === 'pic') {
+                filterRow.appendChild(th); // no filter for pic
+                return;
+            }
+            if (col.id === 'hops' || col.id === 'influence') {
+                // Numeric min/max filters stacked vertically (custom for decimals)
+                const filterStack = document.createElement('div');
+                filterStack.style.display = 'flex';
+                filterStack.style.flexDirection = 'column';
+                filterStack.style.gap = '2px';
+                filterStack.style.alignItems = 'stretch';
+                const minInput = document.createElement('input');
+                minInput.type = 'text'; // Use text to allow any decimal format
+                minInput.inputMode = 'decimal';
+                minInput.autocomplete = 'off';
+                minInput.pattern = '^-?\\d*(\\.\\d*)?$';
+                minInput.placeholder = 'Min';
+                minInput.className = 'table-filter small-input';
+                minInput.value = filters[col.id + 'Min'] || '';
+                minInput.addEventListener('input', function(e) {
+                    // Accept only valid numbers or empty
+                    if (this.value === '' || /^-?\d*(\.\d*)?$/.test(this.value)) {
+                        filters[col.id + 'Min'] = this.value;
+                        page = 1;
+                        // Do not call renderTable() here; let event bubble
+                    } else {
+                        this.classList.add('input-error');
+                    }
+                });
+                minInput.addEventListener('blur', function() {
+                    this.classList.remove('input-error');
+                    renderTable(); // Only re-render on blur
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'text';
+                maxInput.inputMode = 'decimal';
+                maxInput.autocomplete = 'off';
+                maxInput.pattern = '^-?\\d*(\\.\\d*)?$';
+                maxInput.placeholder = 'Max';
+                maxInput.className = 'table-filter small-input';
+                maxInput.value = filters[col.id + 'Max'] || '';
+                maxInput.addEventListener('input', function(e) {
+                    if (this.value === '' || /^-?\d*(\.\d*)?$/.test(this.value)) {
+                        filters[col.id + 'Max'] = this.value;
+                        page = 1;
+                        // Do not call renderTable() here; let event bubble
+                    } else {
+                        this.classList.add('input-error');
+                    }
+                });
+                maxInput.addEventListener('blur', function() {
+                    this.classList.remove('input-error');
+                    renderTable(); // Only re-render on blur
+                });
+                filterStack.appendChild(minInput);
+                filterStack.appendChild(maxInput);
+                th.appendChild(filterStack);
+                filterRow.appendChild(th);
+                return;
+            }
+            // Default: text filter
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = filters[col.id] || '';
+            input.placeholder = 'Filter...';
+            input.className = 'table-filter';
+            input.addEventListener('input', function() {
+                filters[col.id] = this.value;
+                page = 1;
+                renderTable();
+            });
+            th.appendChild(input);
+            filterRow.appendChild(th);
+        });
+        // Sort & filter data
+        let rows = filterData(sortData(allProfiles));
+        // Pagination
+        const total = rows.length;
+        const pages = Math.max(1, Math.ceil(total / pageSize));
+        if (page > pages) page = pages;
+        const start = (page - 1) * pageSize;
+        const end = Math.min(start + pageSize, total);
+        const pagedRows = rows.slice(start, end);
+        // Render body
+        tbody.innerHTML = '';
+        pagedRows.forEach(row => {
+            const tr = document.createElement('tr');
+            grapevineColumns.forEach(col => {
+                if (!columnVisibility[col.id]) return;
+                const td = document.createElement('td');
+                if (col.id === 'pic') {
+                    const link = document.createElement('a');
+                    link.href = `profile.html?pubkey=${encodeURIComponent(row.pubkey)}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    const img = document.createElement('img');
+                    img.alt = 'profile';
+                    img.width = 36; img.height = 36;
+                    img.style = 'border-radius:50%;object-fit:cover;background:#eee;';
+                    loadProfilePicture(row.pubkey, img);
+                    link.appendChild(img);
+                    td.appendChild(link);
+                } else if (col.id === 'pubkey') {
+                    const link = document.createElement('a');
+                    link.href = `https://njump.me/p/${row.pubkey}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'pubkey-link';
+                    link.title = row.pubkey;
+                    // Shorten pubkey: first 8 ... last 4
+                    link.textContent = row.pubkey.length > 16 ? `${row.pubkey.slice(0, 8)}...${row.pubkey.slice(-4)}` : row.pubkey;
+                    td.appendChild(link);
+                } else {
+                    if (col.id === 'influence') {
+                        // Round influence to 4 decimals for display
+                        td.textContent = (typeof row[col.id] === 'number' && !isNaN(row[col.id])) ? row[col.id].toFixed(4) : row[col.id];
+                    } else {
+                        td.textContent = row[col.id];
+                    }
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        // Show/hide table
+        table.style.display = rows.length ? '' : 'none';
+        // Update results indicator
+        document.getElementById('resultsIndicator').textContent = `Showing ${end-start>0?start+1:0}-${end} of ${total} profiles`;
+        document.getElementById('loadingIndicator').style.display = 'none';
+        renderPagination(total, pages);
+    }
+    // --- Helper: Get Display Name for Pubkey ---
+    function getDisplayName(pubkey) {
+        const p = profileCache[pubkey];
+        return (p && (p.display_name || p.name)) ? (p.display_name || p.name) : pubkey;
+    }
+    // --- API Fetch and Initialization ---
+    function setHeaderFromMeta(meta) {
+        const header = document.getElementById('interactionTypeHeader');
+        // Prepare display names and hyperlinks
+        let observerDisplayName = observer ? getDisplayName(observer) : observer;
+        let observeeDisplayName = observee ? getDisplayName(observee) : observee;
+        let observerLink = observer ? `<a href=\"profile.html?pubkey=${observer}\" style=\"color:#3366cc;text-decoration:underline;\">${observerDisplayName}</a>` : '';
+        let observeeLink = observee ? `<a href=\"profile.html?pubkey=${observee}\" style=\"color:#3366cc;text-decoration:underline;\">${observeeDisplayName}</a>` : '';
+        if (meta && meta.title && meta.description) {
+            let desc = meta.description;
+            desc = desc.replace(/\{\{observer\}\}/g, observerLink).replace(/\{\{observee\}\}/g, observeeLink);
+            header.innerHTML = `<div class=\"analysis-title\">${meta.title}</div><div class=\"analysis-description\">${desc}</div>`;
+        } else {
+            header.textContent = interactionType ? interactionType : '';
+        }
+        // Set cypher query for toggle display
+        const cypherBox = document.getElementById('cypherQueryBox');
+        if (meta && meta.cypherQuery) {
+            cypherBox.textContent = meta.cypherQuery.trim();
+        } else {
+            cypherBox.textContent = '';
+        }
+    }
+    const observer = getQueryParam('observer');
+    const observee = getQueryParam('observee');
+    const interactionType = getQueryParam('interactionType');
+    function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+    // When profileCache loads observer/observee, refresh header
+    if (observer && !profileCache[observer]) loadProfilePicture(observer, document.createElement('img'));
+    if (observee && !profileCache[observee]) loadProfilePicture(observee, document.createElement('img'));
+    function isValidPubkey(pubkey) {
+        return typeof pubkey === 'string' && pubkey.length >= 32;
+    }
+    function isValidInteractionType(type) {
+        return typeof type === 'string' && type.length > 0;
+    }
+    function showError(msg) {
+        document.getElementById('loadingIndicator').style.display = 'none';
+        document.getElementById('resultsIndicator').textContent = msg;
+    }
+    loadColumnVisibility();
+    initColumnToggles();
+    document.getElementById('loadingIndicator').style.display = '';
+    if (!isValidPubkey(observer) || !isValidPubkey(observee) || !isValidInteractionType(interactionType)) {
+        showError('Invalid or missing parameters. Please check the link.');
+    } else {
+        fetch(`/api/get-grapevine-interaction?observer=${encodeURIComponent(observer)}&observee=${encodeURIComponent(observee)}&interactionType=${encodeURIComponent(interactionType)}`)
+            .then(resp => resp.json())
+            .then(data => {
+                if (data.success && Array.isArray(data.data)) {
+                    allProfiles = data.data;
+                    setHeaderFromMeta(data.interactionTypeMetaData);
+                    renderTable();
+                } else {
+                    showError('API error: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                showError('Network/API error: ' + err);
+            });
+    }
+    // Add event listener for toggle button
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('toggleCypherBtn');
+        const box = document.getElementById('cypherQueryBox');
+        let visible = false;
+        btn.addEventListener('click', function() {
+            visible = !visible;
+            box.style.display = visible ? '' : 'none';
+            btn.textContent = visible ? 'Hide Cypher Query' : 'Show Cypher Query';
+        });
+    });
+    </script>
+</body>
+</html>

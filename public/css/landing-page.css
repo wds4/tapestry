@@ -1,0 +1,154 @@
+@import "./common.css";
+@import "./relay-link.css";
+@import "./profile-card.css";
+
+body {
+    background-color: #333;
+    color: #b234bd;
+}
+
+.landing-page-title {
+    color: #fff;
+    border: 0px;
+    margin: 0;
+    text-align: center;
+    
+}
+
+.container-landing h1 {
+    text-align: center;
+    font-size: 42px;
+    color: #b234bd;
+    margin: 20px 0;
+}
+
+.container-landing h2 {
+    text-align: center;
+    font-size: 32px;
+    color: #b234bd;
+    margin: 10px 0;
+}
+
+.container-landing h3 {
+    text-align: center;
+    font-size: 24px;
+    color: #b234bd;
+    margin: 5px 0;
+}
+
+.container-landing {
+    text-align: center;
+    margin: 0 auto;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Owner Profile Styling */
+.owner-profile {
+    margin: 20px auto;
+    max-width: 500px;
+    padding: 0 15px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.profile-loading, .error-message {
+    text-align: center;
+    color: #666;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin: 0 auto;
+    max-width: 100%;
+}
+
+.error-message {
+    color: #d9534f;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 480px) {
+    .profile-link {
+        padding: 12px;
+    }
+    
+    .profile-image {
+        flex: 0 0 60px;
+        margin-right: 12px;
+    }
+    
+    .profile-image img {
+        width: 90px;
+        height: 90px;
+    }
+    
+    .profile-name {
+        font-size: 18px;
+    }
+    
+    .profile-handle {
+        font-size: 14px;
+    }
+    
+    .profile-npub {
+        font-size: 12px;
+    }
+}
+
+/* For very small screens */
+@media (max-width: 350px) {
+    .profile-link {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .profile-image {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+    
+    .profile-info {
+        width: 100%;
+        align-items: center;
+    }
+}
+
+.btn {
+    display: inline-block;
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    margin: 10px 0;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.btn:hover {
+    background-color: #555;
+}
+.secondary-btn {
+    background-color: #95a5a6;
+    text-decoration: none;
+    text-align: center;
+}
+
+.secondary-btn:hover {
+    background-color: #7f8c8d;
+}
+
+.home-btn {
+    background-color: #2ecc71;
+    text-decoration: none;
+    text-align: center;
+}
+
+.home-btn:hover {
+    background-color: #27ae60;
+}

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/css/sign-in.css">
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>Sign In</h1>
+    </div>
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="sign-in-box">
+                <h2>Sign In with Nostr</h2>
+                <p>Please sign in using your Nostr extension (NIP-07). Anyone can sign in to access personalized features. Administrative actions are restricted to the owner.</p>
+                
+                <button id="signInBtn" class="btn" disabled>Sign In with Nostr</button>
+                
+                <div id="signInStatus" class="status">Checking for Nostr extension...</div>
+                
+                <div class="button-group">
+                    <a href="/index.html" class="btn home-btn">Back to landing page</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+
+    <script>
+        // Initialize UI elements and set up event handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded: window.nostr status:', window.nostr ? 'Defined' : 'Undefined');
+            
+            const signInBtn = document.getElementById('signInBtn');
+            const signInStatus = document.getElementById('signInStatus');
+            
+            // Set up the sign-in button click handler
+            signInBtn.addEventListener('click', async function() {
+                signInBtn.disabled = true;
+                signInStatus.textContent = 'Authenticating... ';
+                signInStatus.className = 'status info';
+                signInStatus.style.display = 'block';
+                
+                // Add loader
+                const loader = document.createElement('div');
+                loader.className = 'loader';
+                signInStatus.appendChild(loader);
+                
+                try {
+                    // Get public key from NIP-07 extension
+                    const pubkey = await window.nostr.getPublicKey();
+                    
+                    // Verify with server (using user auth endpoint)
+                    const response = await fetch('/api/auth/verify-user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ pubkey })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Debug: Log the complete response data
+                    console.log('Auth verify response:', JSON.stringify(data, null, 2));
+                    
+                    if (data.authorized) {
+                        const userType = data.isOwner ? 'Owner' : 'User';
+                        signInStatus.textContent = `Authentication successful! ${userType} authenticated (${pubkey.substring(0, 8)}...). Creating signed event...`;
+                        
+                        // If authorized, create a signed event for authentication
+                        const event = {
+                            kind: 27235, // Custom kind for auth
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: [
+                                ['challenge', data.challenge]
+                            ],
+                            content: 'Brainstorm Control Panel Authentication'
+                        };
+                        
+                        // Sign the event
+                        const signedEvent = await window.nostr.signEvent(event);
+                        
+                        // Send the signed event to the server (using user login endpoint)
+                        const authResponse = await fetch('/api/auth/login-user', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 
+                                event: signedEvent,
+                            })
+                        });
+                        
+                        const authData = await authResponse.json();
+                        
+                        if (authData.success) {
+                            // userType should be Owner, Customer, or Guest
+                            const userType = authData.isOwner ? 'Owner' : authData.isCustomer ? 'Customer' : 'Guest';
+                            
+                            // Redirect to the appropriate page
+                            let whichPage = 'sign up';
+                            let redirectUrl = '/sign-up.html';
+                            // if authData.isOwner then redirect to home.html
+                            if (authData.isOwner) {
+                                whichPage = 'service-management-dashboard';
+                                redirectUrl = '/service-management-dashboard.html';
+                            }
+                            // if authData.isCustomer then redirect to customer.html
+                            if (authData.isCustomer) {
+                                whichPage = 'customer';
+                                redirectUrl = '/customer.html';
+                            }
+                            signInStatus.textContent = `${userType} authentication successful! Redirecting to ${whichPage} page...`;
+                            signInStatus.className = 'status success';
+                            setTimeout(() => {
+                                window.location.href = redirectUrl;
+                            }, 1500);
+                        } else {
+                            signInStatus.textContent = 'Authentication failed: ' + authData.message;
+                            signInStatus.className = 'status error';
+                            signInBtn.disabled = false;
+                        }
+                    } else {
+                        signInStatus.textContent = 'Authentication failed: ' + data.message;
+                        signInStatus.className = 'status error';
+                        signInBtn.disabled = false;
+                        
+                        // Display the user's pubkey for debugging
+                        const pubkeyInfo = document.createElement('div');
+                        pubkeyInfo.className = 'pubkey-info';
+                        pubkeyInfo.innerHTML = `<strong>Your public key:</strong> <code>${pubkey}</code><br>Please ensure you have a valid Nostr extension installed and try again.`;
+                        signInStatus.appendChild(pubkeyInfo);
+                    }
+                } catch (error) {
+                    console.error('Error during authentication:', error);
+                    signInStatus.textContent = 'Error during authentication: ' + error.message;
+                    signInStatus.className = 'status error';
+                    signInBtn.disabled = false;
+                }
+            });
+        });
+        
+        // Move Nostr extension check to window.load event
+        window.addEventListener('load', function() {
+            console.log('Window loaded: window.nostr status:', window.nostr ? 'Defined' : 'Undefined');
+            
+            const signInBtn = document.getElementById('signInBtn');
+            const signInStatus = document.getElementById('signInStatus');
+            
+            // Allow a short delay after window.load to ensure extension is fully initialized
+            setTimeout(() => {
+                // Check if NIP-07 extension is available
+                if (typeof window.nostr === 'undefined') {
+                    console.log('After delay: window.nostr is still undefined');
+                    signInStatus.textContent = 'No Nostr extension detected. Please install a NIP-07 compatible extension like Alby or nos2x.';
+                    signInStatus.className = 'status error';
+                    signInStatus.style.display = 'block';
+                    signInBtn.disabled = true;
+                } else {
+                    console.log('After delay: window.nostr is defined:', !!window.nostr);
+                    signInStatus.textContent = 'Nostr extension detected! You can now sign in.';
+                    signInStatus.className = 'status success';
+                    signInStatus.style.display = 'block';
+                    signInBtn.disabled = false;
+                }
+            }, 500); // 500ms delay after window.load for extra safety
+        });
+    </script>
+</body>
+</html>

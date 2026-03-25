@@ -1,0 +1,18 @@
+[Unit]
+Description=Process all routine tasks
+After=network.target neo4j.service
+
+[Service]
+Type=simple
+User=brainstorm
+EnvironmentFile=/etc/brainstorm.conf
+ExecStart=/usr/local/lib/node_modules/brainstorm/src/manage/processAllTasks.sh
+Restart=on-failure
+RestartSec=30
+# Set resource limits to prevent excessive resource usage
+CPUQuota=70%
+# Add additional security measures
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

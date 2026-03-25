@@ -1,0 +1,27 @@
+<!-- Brainstorm Header Component -->
+<link rel="stylesheet" href="/control/css/header.css">
+
+<div class="header">
+    <div class="header-content">
+        <a href="/" style="text-decoration: none;">
+            <h1 class="header-title">
+                <img src="/img/brainstorm010.svg" class="brainstorm-image" />
+                Brainstorm
+            </h1>
+        </a>
+        <div class="auth-status">
+            <div id="userInfo" class="user-info">
+                <div class="user-avatar" id="userAvatar"></div>
+                <span id="userName">Authenticated</span>
+                <a href="javascript:void(0);" onclick="logout()" class="btn">Logout</a>
+            </div>
+            <span id="signInLink">
+                <a href="/sign-in.html" class="btn">Sign In</a>
+            </span>
+        </div>
+    </div>
+    <!-- Dynamic Navigation Bar - Will be loaded by JavaScript -->
+    <div class="navbar-container">
+        <center><div id="navbar-container"></div></center>
+    </div>
+</div>

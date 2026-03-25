@@ -1,0 +1,1313 @@
+{
+  "version": "1.0.0",
+  "description": "Comprehensive registry of all Brainstorm background tasks, their relationships, and execution scripts",
+  "lastUpdated": "2025-08-07T21:31:00-05:00",
+  
+  "taskCategories": {
+    "orchestrator": "Top-level task coordination and scheduling",
+    "customer": "Customer-specific processing tasks", 
+    "owner": "Owner-specific tasks not relevant to customers",
+    "network": "Network data synchronization and updates",
+    "algorithms": "Trust metric and ranking calculations",
+    "export": "Data export and API preparation",
+    "maintenance": "System maintenance and cleanup"
+  },
+
+  "options_default": {
+    "launch": {
+      "processAlreadyRunning": {
+        "withoutError": {
+          "killPreexisting": false,
+          "launchNew": false
+        },
+        "withError": {
+          "killPreexisting": true,
+          "launchNew": true
+        }
+      }
+    },
+    "completion": {
+      "success":{
+        "withError": {
+          "parentNextStep": "nextTaskInQueue"
+        },
+        "withoutError": {
+          "parentNextStep": "nextTaskInQueue"
+        }
+      },
+      "failure": {
+        "timeout": {
+          "duration": 1800000,
+          "forceKill": false,
+          "restart": true,
+          "maxRetries": 3,
+          "parentNextStep": "nextTaskInQueue"
+        },
+        "uncaught": {
+          "restart": true,
+          "maxRetries": 3,
+          "parentNextStep": "exit"
+        },
+        "caught": {
+          "restart": true,
+          "maxRetries": 3,
+          "parentNextStep": "exit"
+        }
+      }
+    }
+  },
+
+  "tasks": {
+    "processAllTasks": {
+      "name": "Process All Tasks",
+      "categories": ["orchestrator"],
+      "description": "Legacy sequential orchestrator for all background tasks",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/processAllTasks.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/processAllTasks.sh",
+      "script_relative_path": "manage/processAllTasks.sh",
+      "arguments": false,
+      "children": [
+        "neo4jConstraintsAndIndexes",
+        "syncWoT",
+        "syncProfiles",
+        "callBatchTransferIfNeeded",
+        "reconciliation",
+        "processNpubsUpToMaxNumBlocks",
+        "updateAllScoresForOwner",
+        "processAllActiveCustomers"
+      ],
+      "priority": "high",
+      "frequency": "timer-based",
+      "status": "legacy",
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        },
+        "completion": {
+          "failure": {
+            "timeout": {
+              "comments": "21600000 = 6 hours - generous timeout to accommodate all child tasks including long-running reconciliation (1.5h), syncWoT (1h), and customer processing",
+              "duration": 21600000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Phase 2 structured events implemented - emits TASK_START/END, CHILD_TASK_START/END/ERROR for all 12 child tasks (full pipeline orchestrator). Being replaced by priority-based task queue system but retains structured logging for monitoring."
+    },
+
+    "taskQueueManager": {
+      "name": "Task Queue Manager", 
+      "categories": ["orchestrator"],
+      "description": "New priority-based task orchestrator",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskQueueManager.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskQueueManager.sh",
+      "script_relative_path": "manage/taskQueue/taskQueueManager.sh",
+      "arguments": false,
+      "children": [
+        "taskScheduler",
+        "taskExecutor",
+        "systemStateGatherer"
+      ],
+      "priority": "high",
+      "frequency": "continuous",
+      "status": "active",
+      "notes": "Replacement for processAllTasks.sh"
+    },
+
+    "taskScheduler": {
+      "name": "Task Scheduler",
+      "categories": ["orchestrator"], 
+      "description": "Evaluates system state and queues tasks by priority",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskScheduler.js"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskScheduler.js",
+      "script_relative_path": "manage/taskQueue/taskScheduler.js",
+      "arguments": false,
+      "parent": "taskQueueManager",
+      "priority": "high",
+      "frequency": "continuous",
+      "status": "active"
+    },
+
+    "taskExecutor": {
+      "name": "Task Executor",
+      "categories": ["orchestrator"],
+      "description": "Executes queued tasks based on priority and dependencies",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskExecutor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/taskExecutor.sh",
+      "script_relative_path": "manage/taskQueue/taskExecutor.sh",
+      "arguments": false,
+      "parent": "taskQueueManager",
+      "priority": "high",
+      "frequency": "continuous", 
+      "status": "active"
+    },
+
+    "systemStateGatherer": {
+      "name": "System State Gatherer",
+      "categories": ["orchestrator"],
+      "description": "Collects system state and task completion status for dashboard and monitoring",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/systemStateGatherer.js"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/taskQueue/systemStateGatherer.js",
+      "script_relative_path": "manage/taskQueue/systemStateGatherer.js",
+      "arguments": false,
+      "parent": "taskQueueManager",
+      "priority": "medium",
+      "frequency": "periodic",
+      "status": "active"
+    },
+
+    "neo4jConstraintsAndIndexes": {
+      "name": "Neo4j Constraints and Indexes",
+      "categories": ["maintenance"],
+      "description": "Sets up database constraints and indexes",
+      "scripts": [
+        "$BRAINSTORM_MODULE_BASE_DIR/setup/neo4jConstraintsAndIndexes.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_BASE_DIR/setup/neo4jConstraintsAndIndexes.sh",
+      "script_relative_path": "setup/neo4jConstraintsAndIndexes.sh",
+      "arguments": false,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "high",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {},
+      "notes": "Phase 2 structured logging implemented with comprehensive database maintenance events: TASK_START, creation phase with password fallback, verification with detailed counts, configuration updates, and TASK_END/TASK_ERROR with rich metadata for Neo4j constraints and indexes setup."
+    },
+
+    "syncWoT": {
+      "name": "Sync Web of Trust",
+      "categories": ["network"],
+      "description": "Synchronizes Web of Trust data from relays",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/negentropySync/syncWoT.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/negentropySync/syncWoT.sh",
+      "script_relative_path": "manage/negentropySync/syncWoT.sh",
+      "arguments": false,
+      "averageDuration": 44500,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "high",
+      "frequency": "daily",
+      "status": "active",
+      "estimatedDuration": "30-60 minutes",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "duration": 60000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Phase 2 structured events implemented - emits TASK_START, PROGRESS (initialization, relay_sync phases), and TASK_END with comprehensive metadata about relay synchronization, filter kinds, and sync status."
+    },
+
+    "syncProfiles": {
+      "name": "Sync Profiles",
+      "categories": ["network"],
+      "description": "Synchronizes Profiles data from relays",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/negentropySync/syncProfiles.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/negentropySync/syncProfiles.sh",
+      "script_relative_path": "manage/negentropySync/syncProfiles.sh",
+      "arguments": false,
+      "averageDuration": 44500,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "high",
+      "frequency": "daily",
+      "status": "active",
+      "estimatedDuration": "30-60 minutes",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "duration": 60000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Phase 2 structured events implemented - emits TASK_START, PROGRESS (initialization, relay_sync phases), and TASK_END with comprehensive metadata about relay synchronization, filter kinds, and sync status."
+    },
+
+    "callBatchTransfer": {
+      "name": "Call Batch Transfer",
+      "categories": ["network"],
+      "description": "Executes batch data transfer operations",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/batchTransfer/callBatchTransfer.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/batchTransfer/callBatchTransfer.sh",
+      "script_relative_path": "manage/batchTransfer/callBatchTransfer.sh",
+      "arguments": false,
+      "scope": "system",
+      "priority": "medium",
+      "frequency": "as-needed",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "comments": "3600000 = 1 hour",
+              "duration": 3600000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Phase 2 structured events implemented - emits TASK_START, PROGRESS events for decision and execution phases (transfer needed/skipped), and TASK_END with execution status"
+    },
+
+    "callBatchTransferIfNeeded": {
+      "name": "Call Batch Transfer If Needed",
+      "categories": ["network"],
+      "description": "Conditionally executes batch data transfer operations",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/batchTransfer/callBatchTransferIfNeeded.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/batchTransfer/callBatchTransferIfNeeded.sh",
+      "script_relative_path": "manage/batchTransfer/callBatchTransferIfNeeded.sh",
+      "arguments": false,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": false,
+      "notes": "Phase 2 structured events not yet implemented"
+    },
+
+    "reconciliation": {
+      "name": "Data Reconciliation",
+      "categories": ["network"],
+      "description": "Reconciles neo4j with strfry, taking strfry as source of truth",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/pipeline/reconciliation/reconciliation.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/pipeline/reconciliation/reconciliation.sh",
+      "script_relative_path": "pipeline/reconciliation/reconciliation.sh",
+      "arguments": false,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "comments": "5400000 = 1.5 hours",
+              "duration": 5400000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Phase 2 structured logging implemented - comprehensive 3-phase reconciliation tracking with TASK_START/END, detailed PROGRESS events for each phase (A: mutes, B: follows, C: reports), operation-specific tracking with timing and status"
+    },
+
+    "processNpubsUpToMaxNumBlocks": {
+      "name": "Process Npubs Up To Max Blocks",
+      "categories": ["maintenance"],
+      "description": "Processes npub generation up to maximum number of blocks",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh",
+      "script_relative_path": "manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh",
+      "arguments": false,
+      "parent": "processAllTasks",
+      "scope": "system",
+      "priority": "low",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes": "Phase 2 structured logging implemented with comprehensive iterative npub generation events: TASK_START, initialization status, per-iteration progress tracking, error detection with infinite loop prevention, child script failure handling, and multiple completion scenarios (success/partial_success) with detailed metrics."
+    },
+
+    "processAllActiveCustomers": {
+      "name": "Process All Active Customers",
+      "categories": ["orchestrator", "customer"],
+      "description": "Processes all active customers by calling processCustomer.sh for each",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/processAllActiveCustomers.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/processAllActiveCustomers.sh",
+      "script_relative_path": "algos/customers/processAllActiveCustomers.sh",
+      "arguments": {
+        "customer": false
+      },
+      "parent": "processAllTasks",
+      "children": [
+        "processCustomer"
+      ],
+      "scope": "global",
+      "priority": "high",
+      "frequency": "per-execution",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes": "Phase 2 structured events implemented - emits TASK_START/END, CHILD_TASK_START/END/ERROR for each customer processed, PROGRESS events for discovery/summary/cleanup phases"
+    },
+
+    "processCustomer": {
+      "name": "Process Customer",
+      "categories": ["customer"],
+      "description": "Complete processing pipeline for a single customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/processCustomer.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/processCustomer.sh",
+      "script_relative_path": "algos/customers/processCustomer.sh",
+      "arguments": {
+        "customer": true
+      },
+      "averageDuration": 564500,
+      "parent": "processAllActiveCustomers",
+      "children": [
+        "prepareNeo4jForCustomerData",
+        "updateAllScoresForSingleCustomer"
+      ],
+      "scope": "customer",
+      "priority": "high",
+      "frequency": "per-customer",
+      "status": "active",
+      "estimatedDuration": "20-60 minutes",
+      "structuredLogging": true,
+      "options":{},
+      "notes": "Phase 1 structured events implemented"
+    },
+
+    "prepareNeo4jForCustomerData": {
+      "name": "Prepare Neo4j For Customer Data",
+      "categories": ["customer", "maintenance"],
+      "description": "Preliminary steps for customer data processing, common to all customers",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/cns/prepareNeo4jForCustomerData.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/cns/prepareNeo4jForCustomerData.sh",
+      "script_relative_path": "cns/prepareNeo4jForCustomerData.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomer",
+      "scope": "customer",
+      "priority": "high",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive Neo4j customer preparation events: TASK_START, child script orchestration (addSetsOfMetricsCards.sh and addMetricsCards.sh), individual child script success/failure tracking, and TASK_END with detailed operation completion metadata."
+    },
+
+    "updateAllScoresForOwner": {
+      "name": "Update All Scores For Owner",
+      "categories": ["owner", "algorithms"],
+      "description": "Updates all trust scores for the owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/updateAllScoresForOwner.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/updateAllScoresForOwner.sh",
+      "script_relative_path": "algos/updateAllScoresForOwner.sh",
+      "parent": "processAllTasks",
+      "children": [
+        "calculateOwnerHops",
+        "calculateOwnerPageRank",
+        "calculateOwnerGrapeRank",
+        "processOwnerFollowsMutesReports",
+        "calculateReportScores",
+        "exportWhitelist",
+        "exportOwnerKind30382"
+      ],
+      "scope": "owner",
+      "priority": "high",
+      "status": "active",
+      "timeout": "4 hours",
+      "retries": 3,
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, CHILD_TASK_START/END/ERROR for all 5 child tasks"
+    },
+
+    "updateAllScoresForSingleCustomer": {
+      "name": "Update All Scores For Single Customer",
+      "categories": ["customer", "algorithms"],
+      "description": "Updates all trust scores for a single customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/updateAllScoresForSingleCustomer.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/updateAllScoresForSingleCustomer.sh",
+      "script_relative_path": "algos/customers/updateAllScoresForSingleCustomer.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomer",
+      "children": [
+        "calculateCustomerHops",
+        "calculateCustomerPageRank",
+        "calculateCustomerGrapeRank",
+        "processCustomerFollowsMutesReports",
+        "exportCustomerKind30382"
+      ],
+      "scope": "customer",
+      "priority": "high",
+      "frequency": "per-customer",
+      "status": "active",
+      "timeout": "4 hours",
+      "retries": 3,
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, CHILD_TASK_START/END/ERROR for all 5 child tasks"
+    },
+
+    "calculateOwnerGrapeRank": {
+      "name": "Calculate Owner GrapeRank",
+      "categories": ["algorithms", "owner"],
+      "description": "Calculates personalized GrapeRank scores for the instance owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/personalizedGrapeRank/calculatePersonalizedGrapeRankController.sh",
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/personalizedGrapeRank/calculatePersonalizedGrapeRank.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/personalizedGrapeRank/calculatePersonalizedGrapeRankController.sh",
+      "script_relative_path": "algos/personalizedGrapeRank/calculatePersonalizedGrapeRankController.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "timeout": "20 minutes",
+      "retries": 3,
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive algorithm controller events: TASK_START, retry management with attempt tracking, real-time progress monitoring (every 2 minutes), timeout/premature exit detection, max retries failure handling, and TASK_END with execution statistics."
+    },
+
+    "calculateCustomerGrapeRank": {
+      "name": "Calculate Customer GrapeRank",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates personalized GrapeRank scores for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/personalizedGrapeRank/personalizedGrapeRank.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/personalizedGrapeRank/personalizedGrapeRank.sh",
+      "script_relative_path": "algos/customers/personalizedGrapeRank/personalizedGrapeRank.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "updateAllScoresForSingleCustomer",
+      "scope": "customer",
+      "priority": "high",
+      "frequency": "per-customer",
+      "status": "active",
+      "timeout": "20 minutes",
+      "retries": 3,
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive customer GrapeRank algorithm events: TASK_START, 5-phase orchestration (CSV initialization with conditional logic, ratings interpretation, scorecards initialization, GrapeRank calculation, Neo4j update), individual child process success/failure tracking for mixed technology stack (bash + Node.js), and TASK_END with phase completion summary."
+    },
+
+    "calculateOwnerPageRank": {
+      "name": "Calculate Owner PageRank",
+      "categories": ["algorithms", "owner"],
+      "description": "Calculates personalized PageRank scores for the instance owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/calculatePersonalizedPageRank.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/calculatePersonalizedPageRank.sh",
+      "script_relative_path": "algos/calculatePersonalizedPageRank.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive Neo4j GDS PageRank algorithm events: TASK_START, 3-phase orchestration (graph projection, personalized PageRank calculation with 20 iterations/0.85 damping/MinMax scaling, graph cleanup), individual Cypher query success/failure tracking, non-fatal warning handling for cleanup, and TASK_END with complete algorithm parameters."
+    },
+
+    "calculateCustomerPageRank": {
+      "name": "Calculate Customer PageRank",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates personalized PageRank scores for a customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/personalizedPageRank.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/personalizedPageRank.sh",
+      "script_relative_path": "algos/customers/personalizedPageRank.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "updateAllScoresForSingleCustomer",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for all 5 algorithm phases (graph projection, PageRank calculation, cleanup, data transfer, temp cleanup)"
+    },
+
+    "calculateOwnerHops": {
+      "name": "Calculate Owner Hops",
+      "categories": ["algorithms", "owner"],
+      "description": "Calculates hop distances from the instance owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/calculateHops.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/calculateHops.sh",
+      "script_relative_path": "algos/calculateHops.sh",
+      "enforcedTimeout": 600000,
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "low",
+      "frequency": "weekly",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for 3-phase algorithm (initialization, iterative calculation, completion) with hop level tracking and completion reason"
+    },
+
+    "calculateCustomerHops": {
+      "name": "Calculate Customer Hops",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates hop distances for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/calculateHops.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/calculateHops.sh",
+      "script_relative_path": "algos/customers/calculateHops.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "updateAllScoresForSingleCustomer",
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for initialization and each iteration with hop metrics"
+    },
+
+    "processCustomerFollowsMutesReports": {
+      "name": "Process Customer Follows Mutes Reports",
+      "categories": ["algorithms", "customer"],
+      "description": "Processes follows, mutes, and reports data for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/processFollowsMutesReports.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/processFollowsMutesReports.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/processFollowsMutesReports.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "updateAllScoresForSingleCustomer",
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, CHILD_TASK_START/END/ERROR for all 6 child tasks (verified counts and inputs for follows/mutes/reports)",
+      "children": [
+        "calculateVerifiedFollowerCounts",
+        "calculateVerifiedMuterCounts",
+        "calculateVerifiedReporterCounts",
+        "calculateFollowerInputs",
+        "calculateMuterInputs",
+        "calculateReporterInputs"
+      ]
+    },
+
+    "calculateVerifiedFollowerCounts": {
+      "name": "Calculate Verified Follower Counts",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates verified follower counts for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedFollowerCounts.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedFollowerCounts.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateVerifiedFollowerCounts.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for 2-phase algorithm (non-zero counts calculation, zero counts assignment) with influence cutoff tracking"
+    },
+
+    "calculateVerifiedMuterCounts": {
+      "name": "Calculate Verified Muter Counts",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates verified muter counts for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedMuterCounts.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedMuterCounts.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateVerifiedMuterCounts.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for 2-phase algorithm (non-zero counts calculation, zero counts assignment) with influence cutoff tracking"
+    },
+
+    "calculateVerifiedReporterCounts": {
+      "name": "Calculate Verified Reporter Counts",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates verified reporter counts for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedReporterCounts.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateVerifiedReporterCounts.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateVerifiedReporterCounts.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for 2-phase algorithm (non-zero counts calculation, zero counts assignment) with influence cutoff tracking"
+    },
+
+    "calculateFollowerInputs": {
+      "name": "Calculate Follower Inputs",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates follower inputs for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateFollowerInputs.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateFollowerInputs.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateFollowerInputs.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for single-phase influence aggregation algorithm"
+    },
+
+    "calculateMuterInputs": {
+      "name": "Calculate Muter Inputs",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates muter inputs for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateMuterInputs.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateMuterInputs.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateMuterInputs.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for single-phase influence aggregation algorithm"
+    },
+
+    "calculateReporterInputs": {
+      "name": "Calculate Reporter Inputs",
+      "categories": ["algorithms", "customer"],
+      "description": "Calculates reporter inputs for a specific customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateReporterInputs.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/follows-mutes-reports/calculateReporterInputs.sh",
+      "script_relative_path": "algos/customers/follows-mutes-reports/calculateReporterInputs.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "processCustomerFollowsMutesReports",
+      "children": [],
+      "scope": "customer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured events implemented - emits TASK_START/END, PROGRESS events for single-phase influence aggregation algorithm"
+    },
+
+    "processOwnerFollowsMutesReports": {
+      "name": "Process Owner Follows Mutes Reports",
+      "categories": ["algorithms", "owner"],
+      "description": "Processes follows, mutes, and reports data for the instance owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/follows-mutes-reports/processFollowsMutesReports.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/follows-mutes-reports/processFollowsMutesReports.sh",
+      "script_relative_path": "algos/follows-mutes-reports/processFollowsMutesReports.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive owner-level follows-mutes-reports orchestration events: TASK_START, 3-phase processing (basic counts with 6 scripts, verified counts with 3 scripts, inputs calculation with 1 script), detailed phase start/completion tracking, comprehensive count types and input types metadata, and TASK_END with complete orchestration summary."
+    },
+
+    "calculateReportScores": {
+      "name": "Calculate Report Scores",
+      "categories": ["algorithms", "owner"],
+      "description": "Calculates report scores for the system",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/reports/calculateReportScores.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/reports/calculateReportScores.sh",
+      "script_relative_path": "algos/reports/calculateReportScores.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "medium",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive report scoring algorithm events: TASK_START, 3-phase processing (report types update with child script, iterative per-type processing with dual Neo4j queries for influence-weighted scoring and verified counts, total aggregation with dynamic query building), detailed per-report-type tracking with progress counters, Neo4j property updates tracking, and TASK_END with complete algorithm summary."
+    },
+
+    "exportWhitelist": {
+      "name": "Export Whitelist",
+      "categories": ["export", "owner"],
+      "description": "Exports whitelist data for the system",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/exportWhitelist.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/exportWhitelist.sh",
+      "script_relative_path": "algos/exportWhitelist.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "low",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive whitelist export algorithm events: TASK_START, 4-phase processing (configuration and query building with dynamic Cypher construction, Neo4j query execution with conditional filtering logic, JSON file generation with line-by-line processing, cleanup and finalization with permissions management), detailed configuration parameters tracking (combination logic, influence/hops cutoffs, blacklist integration), performance metrics, and TASK_END with complete export summary."
+    },
+
+    "exportOwnerKind30382": {
+      "name": "Publish Owner NIP-85",
+      "categories": ["export", "owner"],
+      "description": "Publishes NIP-85 data for the instance owner",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/nip85/publishNip85.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/nip85/publishNip85.sh",
+      "script_relative_path": "algos/nip85/publishNip85.sh",
+      "arguments": false,
+      "parent": "updateAllScoresForOwner",
+      "scope": "owner",
+      "priority": "low",
+      "frequency": "daily",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive owner-level NIP-85 publishing events: TASK_START, 3-phase processing (initialization and validation with directory checks and script permissions, NIP-85 event publishing with Node.js script orchestration for kind 30382 events, error handling and completion with exit code validation), robust error handling for directory validation and Node.js script failures, filter criteria tracking for hops-based event selection, target relay configuration, and TASK_END with complete NIP-85 publishing summary."
+    },
+
+    "exportCustomerKind30382": {
+      "name": "Export Customer Kind 30382",
+      "categories": ["export", "customer"],
+      "description": "Exports Kind 30382 events for a customer",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/nip85/publishNip85.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/algos/customers/nip85/publishNip85.sh",
+      "script_relative_path": "algos/customers/nip85/publishNip85.sh",
+      "arguments": {
+        "customer": true
+      },
+      "parent": "updateAllScoresForSingleCustomer",
+      "priority": "medium",
+      "frequency": "per-customer",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented - comprehensive NIP-85 event publishing tracking with TASK_START/END, PROGRESS events for relay pubkey verification and Kind 30382 publishing phases, error handling with TASK_ERROR events"
+    },
+
+    "npubManager": {
+      "name": "Npub Manager",
+      "categories": ["maintenance"],
+      "description": "Ensures all NostrUser nodes have npub properties",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh",
+      "script_relative_path": "manage/nostrUsers/processNpubsUpToMaxNumBlocks.sh",
+      "arguments": false,
+      "children": [
+        "queryMissingNpubs",
+        "generateNpubs", 
+        "updateNpubsInNeo4j"
+      ],
+      "priority": "low",
+      "frequency": "as-needed",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive npub generation workflow events: TASK_START, iterative PROGRESS events for batch processing with detailed counts and performance metrics, TASK_ERROR events for child script failures, and TASK_END events for various completion scenarios (no missing npubs, max iterations reached, successful completion). Includes detailed metadata for batch processing, user counts, iteration tracking, and child script orchestration."
+    },
+
+    "queryMissingNpubs": {
+      "name": "Query Missing Npubs",
+      "categories": ["maintenance"],
+      "description": "Queries Neo4j for NostrUsers missing npub property",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/queryMissingNpubs.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/queryMissingNpubs.sh",
+      "script_relative_path": "manage/nostrUsers/queryMissingNpubs.sh",
+      "arguments": false,
+      "parent": "npubManager",
+      "priority": "low",
+      "frequency": "batch",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive Neo4j query workflow events: TASK_START, 4-phase processing (initialization and validation with argument checking, Neo4j query execution with Cypher query for missing npubs limited to 1000 results, JSON processing with plain text to structured JSON conversion and temporary file management, validation and completion with jq-based JSON validation), robust error handling for query failures, file creation errors, and JSON validation failures, result counting and performance metrics, and TASK_END with complete query summary."
+    },
+
+    "generateNpubs": {
+      "name": "Generate Npubs",
+      "categories": ["maintenance"], 
+      "description": "Generates npubs using nip19.npubEncode",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/generateNpubs.js"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/generateNpubs.js",
+      "script_relative_path": "manage/nostrUsers/generateNpubs.js",
+      "arguments": false,
+      "parent": "npubManager",
+      "priority": "low",
+      "frequency": "batch",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive Node.js npub generation workflow events: TASK_START, 4-phase processing (initialization and validation with input file checking, JSON processing with parsing and validation, npub generation using nostr-tools nip19.npubEncode with batch processing and success/error tracking, output and validation with directory creation and JSON validation), robust error handling for file operations and npub generation failures, performance metrics with success/error counts, and TASK_END with complete generation summary."
+    },
+
+    "updateNpubsInNeo4j": {
+      "name": "Update Npubs In Neo4j",
+      "categories": ["maintenance"],
+      "description": "Updates Neo4j nodes with generated npubs",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/updateNpubsInNeo4j.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/nostrUsers/updateNpubsInNeo4j.sh",
+      "script_relative_path": "manage/nostrUsers/updateNpubsInNeo4j.sh",
+      "arguments": false,
+      "parent": "npubManager", 
+      "priority": "low",
+      "frequency": "batch",
+      "status": "active",
+      "structuredLogging": true,
+      "options":{},
+      "notes":"Phase 2 structured logging implemented with comprehensive Neo4j APOC batch update workflow events: TASK_START, 4-phase processing (initialization and validation with import file checking and JSON validation, JSON processing and counting with record enumeration, APOC batch update execution using apoc.periodic.iterate with batch size 250 and sequential processing, verification and completion with post-update NostrUser npub property verification), robust error handling for file operations and Neo4j query failures, APOC performance metrics with committed/failed operations and execution time tracking, and TASK_END with complete batch update summary."
+    },
+
+    "taskWatchdog": {
+      "name": "Task Watchdog",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that analyzes structured logging data to detect stuck, failed, and orphaned tasks",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/taskWatchdog.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/taskWatchdog.sh",
+      "script_relative_path": "manage/healthMonitor/taskWatchdog.sh",
+      "arguments": false,
+      "children": [],
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "timeout": "10 minutes",
+      "retries": 2,
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        }
+      },
+      "notes": "First component of Brainstorm Health Monitor (BHM) system. Analyzes events.jsonl to detect: tasks running longer than expected duration (2x threshold), orphaned child processes (parent died but child still running), tasks with TASK_START but no TASK_END/TASK_ERROR, resource-related failures (high memory usage, Neo4j connectivity issues). Emits HEALTH_ALERT events with alertType: STUCK_TASK, DEAD_TASK_NO_COMPLETION, ORPHANED_TASK, HIGH_MEMORY_USAGE, NEO4J_CONNECTIVITY_ISSUES."
+    },
+
+    "systemResourceMonitor": {
+      "name": "System Resource Monitor",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that monitors system resources with special emphasis on Neo4j health",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/systemResourceMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/systemResourceMonitor.sh",
+      "script_relative_path": "manage/healthMonitor/systemResourceMonitor.sh",
+      "arguments": {},
+      "children": [],
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "timeout": "5 minutes",
+      "retries": 2,
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        }
+      },
+      "notes": "Second component of Brainstorm Health Monitor (BHM) system. Monitors system resources with special focus on Neo4j health: service status, memory usage, heap utilization, GC metrics, connection testing, and response times. Also monitors strfry service health and general system resources (memory, disk, load). Emits HEALTH_ALERT events with alertType: NEO4J_SERVICE_DOWN, NEO4J_CONNECTION_FAILED, NEO4J_HIGH_MEMORY_USAGE, NEO4J_HEAP_CRITICAL, NEO4J_HEAP_WARNING, STRFRY_SERVICE_DOWN, SYSTEM_MEMORY_CRITICAL, SYSTEM_MEMORY_WARNING, SYSTEM_DISK_CRITICAL, SYSTEM_DISK_WARNING."
+    },
+
+    "taskBehaviorMonitor": {
+      "name": "Task Behavior Monitor",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that analyzes task execution patterns and detects behavioral anomalies",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/taskBehaviorMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/taskBehaviorMonitor.sh",
+      "script_relative_path": "manage/healthMonitor/taskBehaviorMonitor.sh",
+      "arguments": false,
+      "children": [],
+      "scope": "system",
+      "priority": "medium",
+      "frequency": "periodic",
+      "status": "active",
+      "timeout": "10 minutes",
+      "retries": 2,
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        }
+      },
+      "notes": "Third component of Brainstorm Health Monitor (BHM) system. Orchestrates task anomaly detection and performance baseline tracking. Analyzes structured logging events to detect stuck tasks (>60min runtime), excessive runtimes (>3x baseline), silent failures (no progress >30min), and performance deviations (>2σ from baseline). Maintains rolling 7-day performance baselines with outlier filtering. Emits HEALTH_ALERT events with alertType: STUCK_TASK, EXCESSIVE_RUNTIME, SILENT_FAILURE, PERFORMANCE_DEVIATION. Coordinates taskAnomalyDetector.js and taskPerformanceBaseline.js components."
+    },
+
+    "neo4jStabilityMonitor": {
+      "name": "Neo4j Stability Monitor",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Comprehensive Neo4j stability monitoring that orchestrates crash pattern detection and performance analysis",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/neo4jStabilityMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/neo4jStabilityMonitor.sh",
+      "script_relative_path": "manage/healthMonitor/neo4jStabilityMonitor.sh",
+      "arguments": false,
+      "children": ["neo4jCrashPatternDetector"],
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "timeout": "15 minutes",
+      "retries": 2,
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        }
+      },
+      "notes": "Fourth component of Brainstorm Health Monitor (BHM) system. Orchestrates comprehensive Neo4j stability monitoring including crash pattern detection, index health validation, connection performance testing, and crash history analysis. Addresses common Neo4j failure modes: OutOfMemoryError patterns (heap space, GC overhead, metaspace), APOC procedure stalling, missing indexes, and performance degradation. Emits HEALTH_ALERT events with alertType: HEAP_SPACE_OOM, GC_OVERHEAD_OOM, NEO4J_HEAP_CRITICAL, APOC_STALLING, NEO4J_FAILED_INDEXES, NEO4J_QUERY_TIMEOUT, NEO4J_FREQUENT_RESTARTS. Coordinates neo4jCrashPatternDetector component."
+    },
+
+    "neo4jCrashPatternDetector": {
+      "name": "Neo4j Crash Pattern Detector",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Specialized detector for Neo4j crash patterns and memory issues",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/neo4jCrashPatternDetector.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/healthMonitor/neo4jCrashPatternDetector.sh",
+      "script_relative_path": "manage/healthMonitor/neo4jCrashPatternDetector.sh",
+      "arguments": false,
+      "parent": "neo4jStabilityMonitor",
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "timeout": "10 minutes",
+      "retries": 1,
+      "structuredLogging": true,
+      "options": {
+        "launch": {
+          "processAlreadyRunning": {
+            "withoutError": {
+              "killPreexisting": false,
+              "launchNew": false
+            },
+            "withError": {
+              "killPreexisting": true,
+              "launchNew": true
+            }
+          }
+        }
+      },
+      "notes": "Specialized Neo4j crash pattern detector that analyzes logs and runtime metrics for specific failure modes. Detects OutOfMemoryError patterns: Java heap space exhaustion, GC overhead limit exceeded (>98% GC time), Metaspace/Compressed class space errors, native thread creation failures. Monitors real-time heap utilization, GC overhead, and full GC frequency. Detects APOC procedure stalling and long-running transactions (>5min). Uses jstat for detailed JVM metrics and log pattern analysis. Emits detailed HEALTH_ALERT events with specific crash pattern types and remediation guidance."
+    },
+
+    "applicationHealthMonitor": {
+      "name": "Application Health Monitor",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that monitors application services and endpoints",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/applicationHealthMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/applicationHealthMonitor.sh",
+      "script_relative_path": "manage/monitor/applicationHealthMonitor.sh",
+      "arguments": {},
+      "children": [],
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "duration": 600000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Monitors Brainstorm application health including service processes, port availability, HTTP endpoints, and application-specific metrics. Emits HEALTH_ALERT events for service failures and performance issues."
+    },
+
+    "neo4jPerformanceMonitor": {
+      "name": "Database Performance Monitor", 
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that monitors Neo4j database performance metrics",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/neo4jPerformanceMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/neo4jPerformanceMonitor.sh",
+      "script_relative_path": "manage/monitor/neo4jPerformanceMonitor.sh",
+      "arguments": {},
+      "children": [],
+      "scope": "system",
+      "priority": "high",
+      "frequency": "periodic",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "duration": 600000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Monitors Neo4j database performance including query execution times, heap utilization, transaction metrics, and connection health. Emits HEALTH_ALERT events for performance degradation and resource constraints."
+    },
+
+    "externalNetworkConnectivityMonitor": {
+      "name": "Network Connectivity Monitor",
+      "categories": ["maintenance", "healthMonitor"],
+      "description": "Brainstorm Health Monitor component that monitors network connectivity and external services",
+      "scripts": [
+        "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/externalNetworkConnectivityMonitor.sh"
+      ],
+      "script": "$BRAINSTORM_MODULE_SRC_DIR/manage/monitor/externalNetworkConnectivityMonitor.sh", 
+      "script_relative_path": "manage/monitor/externalNetworkConnectivityMonitor.sh",
+      "arguments": {},
+      "children": [],
+      "scope": "system",
+      "priority": "medium",
+      "frequency": "periodic",
+      "status": "active",
+      "structuredLogging": true,
+      "options": {
+        "completion": {
+          "failure": {
+            "timeout": {
+              "duration": 600000,
+              "forceKill": false
+            }
+          }
+        }
+      },
+      "notes": "Monitors network connectivity to critical endpoints including DNS resolution, Nostr relays, external APIs, and internet connectivity. Emits HEALTH_ALERT events for network failures and connectivity issues."
+    }
+  },
+
+  "executionFlow": {
+    "legacy": {
+      "description": "Current sequential execution via processAllTasks.sh",
+      "sequence": [
+        "syncWoT",
+        "syncProfiles",
+        "processAllActiveCustomers"
+      ],
+      "customerSequence": [
+        "updateAllScoresForSingleCustomer",
+        "calculatePersonalizedGrapeRank",
+        "calculatePersonalizedPageRank", 
+        "processFollowsMutesReports",
+        "exportCustomerKind30382"
+      ]
+    },
+    "priorityBased": {
+      "description": "New priority-based execution via taskQueueManager",
+      "components": [
+        "taskScheduler",
+        "taskExecutor", 
+        "systemStateGatherer"
+      ],
+      "priorities": {
+        "high": ["syncWoT", "processCustomer", "updateAllScoresForSingleCustomer"],
+        "medium": ["calculatePersonalizedGrapeRank", "calculatePersonalizedPageRank", "processFollowsMutesReports"],
+        "low": ["exportCustomerKind30382", "npubManager", "systemStateGatherer"]
+      }
+    }
+  },
+
+  "structuredLogging": {
+    "phase1Complete": ["processCustomer"],
+    "phase2Candidates": {
+      "owner": [
+        "calculateOwnerGrapeRank",
+        "calculateOwnerPageRank",
+        "syncWoT"
+      ],
+      "customer": [
+        "calculateCustomerGrapeRank",
+        "calculateCustomerPageRank", 
+        "processFollowsMutesReports"
+      ]
+    },
+    "phase3Candidates": {
+      "customer": [
+        "updateAllScoresForSingleCustomer",
+        "exportCustomerKind30382",
+        "calculateCustomerHops"
+      ],
+      "owner": [
+        "calculateOwnerHops"
+      ],
+      "maintenance": [
+        "npubManager"
+      ]
+    }
+  },
+
+  "monitoring": {
+    "logFiles": {
+      "processCustomer": "processCustomer.log",
+      "calculatePersonalizedGrapeRank": "calculatePersonalizedGrapeRank.log",
+      "processFollowsMutesReports": "processFollowsMutesReports.log",
+      "syncWoT": "syncWoT.log",
+      "syncProfiles": "syncProfiles.log"
+    },
+    "structuredEvents": {
+      "eventsFile": "taskQueue/events.jsonl",
+      "stateFile": "taskQueue/fullSystemState.json"
+    }
+  }
+}

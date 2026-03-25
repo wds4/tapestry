@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/profiles.css">
+    <script src="./components/header/header.js"></script>
+    <script src="/components/observerSelector/observerSelector.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+    
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div class="header-profiles">
+                <div>
+                    <button id="refreshBtn" style="display: none">Refresh Data</button>
+                    <button id="exportCsvBtn" class="secondary" style="display: none">Export CSV</button>
+                </div>
+            </div>
+
+            <div class="results-row" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px;">
+                <!-- Profile count information -->
+                <div class="profile-counts">
+                    Showing <span id="filteredCount">0</span> filtered profiles out of <span id="totalCount">0</span> total
+                </div>
+                <div class="column-panel-controls">
+                    <span style="font-weight: 600; font-size: 1.03em; letter-spacing: 0.01em;">Columns</span>
+                    <button id="columnSettingsBtn" class="secondary" title="Toggle column visibility" style="font-size: 1.06em; padding: 4px 4px; min-width: 32px;">+</button>
+                    <button id="applyFiltersBtn">Apply Filters</button>
+                    <button id="resetFiltersBtn" class="secondary" style="display: none">Reset</button>
+                </div>
+            </div>
+
+            <div id="statusMessage" style="display: none;"></div>
+
+            <!-- Observer Selector Component -->
+            <div id="observerSelectorContainer"></div>
+
+            <!-- Column settings panel -->
+            <div id="columnSettingsPanel" class="panel" style="display: none; margin-bottom: 10px;">
+                <h3>Column Visibility</h3>
+                <div id="columnToggles">
+                    <!-- Checkboxes will be added here dynamically -->
+                </div>
+                <button id="resetColumnDefaultsBtn" class="secondary" style="margin-top: 10px;">Reset Defaults</button>
+            </div>
+
+            <div id="tableContainer">
+                <div id="loadingIndicator" class="loading"></div>
+                <table id="mainProfilesTable" style="display: none;">
+                    <thead>
+                        <tr class="header-row">
+                            <th class="profile-pic-col" data-sort="profile-pic-col">Pic</th>
+                            <th data-sort="npub">Npub</th>
+                            <th data-sort="pubkey">Pubkey</th>
+                            <th data-sort="verifiedFollowerCount" class="sort-desc">🍇-Verified Followers</th>
+                            <th data-sort="nip56TotalGrapeRankScore" class="sort-desc">🍇-Report Score</th>
+                            <th data-sort="nip56TotalVerifiedReportCount" class="sort-desc">🍇-Verified Reports</th>
+                            <th data-sort="nip56TotalReportCount" class="sort-desc">Total Reports</th>  
+                            <th data-sort="hops" class="sort-desc">Hops</th>
+                            <th data-sort="personalizedPageRank" class="sort-desc">PageRank</th>
+                            <th data-sort="influence" class="sort-desc">Influence</th>
+                            <th data-sort="average" class="sort-desc">Average</th>
+                            <th data-sort="confidence" class="sort-desc">Confidence</th>
+                            <th data-sort="input" class="sort-desc">Input</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <th></th>
+                            <th>
+                                <input type="text" id="filterNpub" placeholder="Npub contains..." class="table-filter">
+                            </th>
+                            <th>
+                                <input type="text" id="filterPubkey" placeholder="Pubkey contains..." class="table-filter">
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinVerifiedFollowers" placeholder="Min" min="0" class="table-filter small-input">
+                                    <input type="number" id="filterMaxVerifiedFollowers" placeholder="Max" min="0" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinNip56TotalGrapeRankScore" placeholder="Min" min="0" class="table-filter small-input">
+                                    <input type="number" id="filterMaxNip56TotalGrapeRankScore" placeholder="Max" min="0" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinNip56TotalVerifiedReportCount" placeholder="Min" min="0" class="table-filter small-input">
+                                    <input type="number" id="filterMaxNip56TotalVerifiedReportCount" placeholder="Max" min="0" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinNip56TotalReportCount" placeholder="Min" min="0" class="table-filter small-input">
+                                    <input type="number" id="filterMaxNip56TotalReportCount" placeholder="Max" min="0" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinHops" placeholder="Min" min="0" max="20" class="table-filter small-input">
+                                    <input type="number" id="filterMaxHops" placeholder="Max" min="1" max="20" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinPersonalizedPageRank" placeholder="Min" min="0" step="0.000001" class="table-filter small-input">
+                                    <input type="number" id="filterMaxPersonalizedPageRank" placeholder="Max" min="0" step="0.000001" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinInfluence" placeholder="Min" min="0" step="0.000001" class="table-filter small-input">
+                                    <input type="number" id="filterMaxInfluence" placeholder="Max" min="0" step="0.000001" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinAverage" placeholder="Min" min="-1" max="1" step="0.01" class="table-filter small-input">
+                                    <input type="number" id="filterMaxAverage" placeholder="Max" min="-1" max="1" step="0.01" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinConfidence" placeholder="Min" min="0" max="1" step="0.01" class="table-filter small-input">
+                                    <input type="number" id="filterMaxConfidence" placeholder="Max" min="0" max="1" step="0.01" class="table-filter small-input">
+                                </div>
+                            </th>
+                            <th>
+                                <div class="filter-inputs filter-inputs-vertical">
+                                    <input type="number" id="filterMinInput" placeholder="Min" min="0" step="0.01" class="table-filter small-input">
+                                    <input type="number" id="filterMaxInput" placeholder="Max" min="0" step="0.01" class="table-filter small-input">
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="mainProfilesTableBody">
+                        <!-- Table data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="paginationContainer" class="pagination" style="display: none;"></div>
+            <div id="pageSizeContainer" class="pagination" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Column definitions with display names and default visibility
+        const columns = [
+            { id: 'profile-pic-col', name: 'Profile Picture', defaultVisible: true, alwaysVisible: true },
+            { id: 'npub', name: 'Npub', defaultVisible: true },
+            { id: 'pubkey', name: 'Pubkey', defaultVisible: true },
+            { id: 'verifiedFollowerCount', name: '🍇-Verified Followers', defaultVisible: true },
+            { id: 'nip56TotalGrapeRankScore', name: '🍇-Report Score', defaultVisible: true },
+            { id: 'nip56TotalVerifiedReportCount', name: '🍇-Verified Reports', defaultVisible: true },
+            { id: 'nip56TotalReportCount', name: 'Total Reports', defaultVisible: true },
+            { id: 'hops', name: 'Hops', defaultVisible: true },
+            { id: 'personalizedPageRank', name: 'PageRank', defaultVisible: true },
+            { id: 'influence', name: 'Influence', defaultVisible: true },
+            { id: 'average', name: 'Average', defaultVisible: true },
+            { id: 'confidence', name: 'Confidence', defaultVisible: true },
+            { id: 'input', name: 'Input', defaultVisible: true }
+        ];
+
+        // Load column visibility settings from localStorage
+        function loadColumnVisibility() {
+            const savedSettings = localStorage.getItem('profilesColumnVisibility');
+            if (savedSettings) {
+                try {
+                    return JSON.parse(savedSettings);
+                } catch (e) {
+                    console.error('Error parsing saved column visibility', e);
+                }
+            }
+            
+            // Default settings if none saved
+            const isNarrow = window.innerWidth <= 700;
+            const defaults = {};
+            columns.forEach(col => {
+                if (isNarrow) {
+                    // Default ON for Pic, Verified Followers, Hops, Influence; OFF for others
+                    defaults[col.id] = (
+                        col.id === 'profile-pic-col' ||
+                        col.id === 'verifiedFollowerCount' ||
+                        col.id === 'influence'
+                    );
+                } else {
+                    defaults[col.id] = true;
+                }
+            });
+            return defaults;
+        }
+
+        // Global state management
+        let state = {
+            profiles: [],
+            pagination: {
+                page: 1,
+                limit: 50,
+                total: 0
+            },
+            sorting: {
+                column: 'hops',
+                order: 'asc'
+            },
+            filters: {
+                npub: '',
+                pubkey: '',
+                minHops: '',
+                maxHops: '',
+                minPersonalizedPageRank: '',
+                maxPersonalizedPageRank: '',
+                minInfluence: '',
+                maxInfluence: '',
+                minAverage: '',
+                maxAverage: '',
+                minConfidence: '',
+                maxConfidence: '',
+                minInput: '',
+                maxInput: '',
+                minVerifiedFollowers: '',
+                maxVerifiedFollowers: '',
+                minNip56TotalGrapeRankScore: '',
+                maxNip56TotalGrapeRankScore: '',
+                minNip56TotalVerifiedReportCount: '',
+                maxNip56TotalVerifiedReportCount: '',
+                minNip56TotalReportCount: '',
+                maxNip56TotalReportCount: ''
+            },
+            counts: {
+                total: 0,
+                filtered: 0
+            },
+            observerPubkey: 'owner', // Default to global/owner view
+            profileCache: {}, // Cache for profile data to avoid duplicate API calls
+            columnVisibility: loadColumnVisibility()
+        };
+        
+        // Observer selector instance
+        let observerSelector;
+        
+        // Global DOM element references
+        let tableBody, mainProfilesTable, loadingIndicator, paginationContainer, statusMessage;
+        let filterNpub, filterPubkey, filterMinHops, filterMaxHops, filterMinPersonalizedPageRank, filterMaxPersonalizedPageRank;
+        let filterMinInfluence, filterMaxInfluence, filterMinAverage, filterMaxAverage;
+        let filterMinConfidence, filterMaxConfidence, filterMinInput, filterMaxInput;
+        let filterMinVerifiedFollowers, filterMaxVerifiedFollowers;
+        let filterMinNip56TotalGrapeRankScore, filterMaxNip56TotalGrapeRankScore;
+        let filterMinNip56TotalVerifiedReportCount, filterMaxNip56TotalVerifiedReportCount;
+        let filterMinNip56TotalReportCount, filterMaxNip56TotalReportCount;
+        let applyFiltersBtn, resetFiltersBtn, refreshBtn, exportCsvBtn;
+        let columnSettingsBtn, columnSettingsPanel, columnToggles;
+            
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize DOM element references
+            tableBody = document.getElementById('mainProfilesTableBody');
+            mainProfilesTable = document.getElementById('mainProfilesTable');
+            loadingIndicator = document.getElementById('loadingIndicator');
+            paginationContainer = document.getElementById('paginationContainer');
+            statusMessage = document.getElementById('statusMessage');
+            
+            // Filter elements
+            filterNpub = document.getElementById('filterNpub');
+            filterPubkey = document.getElementById('filterPubkey');
+            filterMinHops = document.getElementById('filterMinHops');
+            filterMaxHops = document.getElementById('filterMaxHops');
+            filterMinPersonalizedPageRank = document.getElementById('filterMinPersonalizedPageRank');
+            filterMaxPersonalizedPageRank = document.getElementById('filterMaxPersonalizedPageRank');
+            filterMinInfluence = document.getElementById('filterMinInfluence');
+            filterMaxInfluence = document.getElementById('filterMaxInfluence');
+            filterMinAverage = document.getElementById('filterMinAverage');
+            filterMaxAverage = document.getElementById('filterMaxAverage');
+            filterMinConfidence = document.getElementById('filterMinConfidence');
+            filterMaxConfidence = document.getElementById('filterMaxConfidence');
+            filterMinInput = document.getElementById('filterMinInput');
+            filterMaxInput = document.getElementById('filterMaxInput');
+            filterMinVerifiedFollowers = document.getElementById('filterMinVerifiedFollowers');
+            filterMaxVerifiedFollowers = document.getElementById('filterMaxVerifiedFollowers');
+            filterMinNip56TotalGrapeRankScore = document.getElementById('filterMinNip56TotalGrapeRankScore');
+            filterMaxNip56TotalGrapeRankScore = document.getElementById('filterMaxNip56TotalGrapeRankScore');
+            filterMinNip56TotalVerifiedReportCount = document.getElementById('filterMinNip56TotalVerifiedReportCount');
+            filterMaxNip56TotalVerifiedReportCount = document.getElementById('filterMaxNip56TotalVerifiedReportCount');
+            filterMinNip56TotalReportCount = document.getElementById('filterMinNip56TotalReportCount');
+            filterMaxNip56TotalReportCount = document.getElementById('filterMaxNip56TotalReportCount');
+            applyFiltersBtn = document.getElementById('applyFiltersBtn');
+            resetFiltersBtn = document.getElementById('resetFiltersBtn');
+            refreshBtn = document.getElementById('refreshBtn');
+            exportCsvBtn = document.getElementById('exportCsvBtn');
+            columnSettingsBtn = document.getElementById('columnSettingsBtn');
+            columnSettingsPanel = document.getElementById('columnSettingsPanel');
+            columnToggles = document.getElementById('columnToggles');
+            
+            // Initialize the page
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Set the default filter values in UI
+            filterNpub.value = state.filters.npub;
+            filterPubkey.value = state.filters.pubkey;
+            filterMinHops.value = state.filters.minHops;
+            filterMaxHops.value = state.filters.maxHops;
+            filterMinPersonalizedPageRank.value = state.filters.minPersonalizedPageRank;
+            filterMaxPersonalizedPageRank.value = state.filters.maxPersonalizedPageRank;
+            filterMinInfluence.value = state.filters.minInfluence;
+            filterMaxInfluence.value = state.filters.maxInfluence;
+            filterMinAverage.value = state.filters.minAverage;
+            filterMaxAverage.value = state.filters.maxAverage;
+            filterMinConfidence.value = state.filters.minConfidence;
+            filterMaxConfidence.value = state.filters.maxConfidence;
+            filterMinInput.value = state.filters.minInput;
+            filterMaxInput.value = state.filters.maxInput;
+            filterMinVerifiedFollowers.value = state.filters.minVerifiedFollowers;
+            filterMaxVerifiedFollowers.value = state.filters.maxVerifiedFollowers;
+            filterMinNip56TotalGrapeRankScore.value = state.filters.minNip56TotalGrapeRankScore;
+            filterMaxNip56TotalGrapeRankScore.value = state.filters.maxNip56TotalGrapeRankScore;
+            filterMinNip56TotalReportCount.value = state.filters.minNip56TotalReportCount;
+            filterMaxNip56TotalReportCount.value = state.filters.maxNip56TotalReportCount;
+            filterMinNip56TotalVerifiedReportCount.value = state.filters.minNip56TotalVerifiedReportCount;
+            filterMaxNip56TotalVerifiedReportCount.value = state.filters.maxNip56TotalVerifiedReportCount;
+            
+            // Initialize observer selector
+            initializeObserverSelector();
+            
+            // Load initial data
+            fetchProfiles();
+            
+            function fetchProfiles() {
+                // Show loading indicator
+                loadingIndicator.style.display = 'flex';
+                mainProfilesTable.style.display = 'none';
+                paginationContainer.style.display = 'none';
+                
+                // Build query parameters
+                const params = new URLSearchParams();
+                params.append('page', state.pagination.page);
+                params.append('limit', state.pagination.limit);
+                
+                // Map frontend column names to backend field names for sorting
+                let sortColumn = state.sorting.column;
+                // Handle special cases for column names that differ between frontend and backend
+                if (sortColumn === 'nip56TotalGrapeRankScore') {
+                    sortColumn = 'nip56_totalGrapeRankScore';
+                }
+                if (sortColumn === 'nip56TotalVerifiedReportCount') {
+                    sortColumn = 'nip56_totalVerifiedReportCount';
+                }
+                if (sortColumn === 'nip56TotalReportCount') {
+                    sortColumn = 'nip56_totalReportCount';
+                }
+                
+                params.append('sortBy', sortColumn);
+                params.append('sortOrder', state.sorting.order);
+                
+                // Add filters if they exist
+                if (state.filters.npub) params.append('filterNpub', state.filters.npub);
+                if (state.filters.pubkey) params.append('filterPubkey', state.filters.pubkey);
+                if (state.filters.minHops) params.append('filterMinHops', state.filters.minHops);
+                if (state.filters.maxHops) params.append('filterMaxHops', state.filters.maxHops);
+                if (state.filters.minPersonalizedPageRank) params.append('filterMinPersonalizedPageRank', state.filters.minPersonalizedPageRank);
+                if (state.filters.maxPersonalizedPageRank) params.append('filterMaxPersonalizedPageRank', state.filters.maxPersonalizedPageRank);
+                if (state.filters.minInfluence) params.append('filterMinInfluence', state.filters.minInfluence);
+                if (state.filters.maxInfluence) params.append('filterMaxInfluence', state.filters.maxInfluence);
+                if (state.filters.minAverage) params.append('filterMinAverage', state.filters.minAverage);
+                if (state.filters.maxAverage) params.append('filterMaxAverage', state.filters.maxAverage);
+                if (state.filters.minConfidence) params.append('filterMinConfidence', state.filters.minConfidence);
+                if (state.filters.maxConfidence) params.append('filterMaxConfidence', state.filters.maxConfidence);
+                if (state.filters.minInput) params.append('filterMinInput', state.filters.minInput);
+                if (state.filters.maxInput) params.append('filterMaxInput', state.filters.maxInput);
+                if (state.filters.minVerifiedFollowers) params.append('filterMinVerifiedFollowers', state.filters.minVerifiedFollowers);
+                if (state.filters.maxVerifiedFollowers) params.append('filterMaxVerifiedFollowers', state.filters.maxVerifiedFollowers);
+                if (state.filters.minNip56TotalGrapeRankScore) params.append('filterMinNip56TotalGrapeRankScore', state.filters.minNip56TotalGrapeRankScore);
+                if (state.filters.maxNip56TotalGrapeRankScore) params.append('filterMaxNip56TotalGrapeRankScore', state.filters.maxNip56TotalGrapeRankScore);
+                if (state.filters.minNip56TotalVerifiedReportCount) params.append('filterMinNip56TotalVerifiedReportCount', state.filters.minNip56TotalVerifiedReportCount);
+                if (state.filters.maxNip56TotalVerifiedReportCount) params.append('filterMaxNip56TotalVerifiedReportCount', state.filters.maxNip56TotalVerifiedReportCount);
+                if (state.filters.minNip56TotalReportCount) params.append('filterMinNip56TotalReportCount', state.filters.minNip56TotalReportCount);
+                if (state.filters.maxNip56TotalReportCount) params.append('filterMaxNip56TotalReportCount', state.filters.maxNip56TotalReportCount);
+                
+                // Add observer pubkey parameter
+                if (state.observerPubkey) {
+                    params.append('observerPubkey', state.observerPubkey);
+                }
+                
+                // Fetch data from API
+                fetch(`/control/api/get-profiles?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update state
+                            state.profiles = data.data.users;
+                            state.pagination = data.data.pagination;
+                            state.counts.filtered = data.data.pagination.total;
+                            state.counts.total = data.data.totalProfiles || state.counts.filtered;
+                            
+                            // Update the count display
+                            updateProfileCounts();
+                            
+                            // Render table and pagination
+                            renderTable();
+                            renderPagination();
+                            
+                            // Hide loading indicator
+                            loadingIndicator.style.display = 'none';
+                            mainProfilesTable.style.display = 'table';
+                            paginationContainer.style.display = 'flex';
+                            
+                            // Show success message
+                            showStatusMessage(`Loaded ${state.profiles.length} of ${state.pagination.total} profiles`, 'success');
+                        } else {
+                            // Show error message
+                            showStatusMessage(`Error: ${data.message}`, 'error');
+                            loadingIndicator.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching profiles:', error);
+                        showStatusMessage(`Error fetching profiles: ${error.message}`, 'error');
+                        loadingIndicator.style.display = 'none';
+                    });
+            }
+            
+            function isCompactTableMode() {
+                // Get visible columns (excluding profile-pic-col)
+                const visibleCols = columns.filter(col => {
+                    if (col.id === 'profile-pic-col') return false;
+                    return state.columnVisibility && state.columnVisibility[col.id] !== false;
+                });
+                // Estimate minimum table width: 44px for pic + 120px per visible column + 32px padding
+                const minTableWidth = 44 + visibleCols.length * 120 + 32;
+                // Only use compact mode if screen is narrow AND table won't fit
+                console.log(`isCompactTableMode: ${window.innerWidth <= 700 && window.innerWidth < minTableWidth}`)
+                return window.innerWidth <= 700 && window.innerWidth < minTableWidth;
+            }
+
+            function setupEventListeners() {
+                // Table header sorting
+                const headers = document.querySelectorAll('th[data-sort]');
+                headers.forEach(header => {
+                    header.addEventListener('click', () => {
+                        const column = header.getAttribute('data-sort');
+                        let order = 'desc';
+                        
+                        // Toggle sort order if clicking the same column
+                        if (state.sorting.column === column) {
+                            order = state.sorting.order === 'desc' ? 'asc' : 'desc';
+                        }
+                        
+                        // Update sorting state
+                        state.sorting.column = column;
+                        state.sorting.order = order;
+                        
+                        // Update UI
+                        updateSortIndicators(column, order);
+                        
+                        // Fetch data with new sorting
+                        fetchProfiles();
+                    });
+                });
+                
+                // Filter buttons
+                applyFiltersBtn.addEventListener('click', () => {
+                    state.filters.npub = filterNpub.value.trim();
+                    state.filters.pubkey = filterPubkey.value.trim();
+                    state.filters.minHops = filterMinHops.value.trim();
+                    state.filters.maxHops = filterMaxHops.value.trim();
+                    state.filters.minPersonalizedPageRank = filterMinPersonalizedPageRank.value.trim();
+                    state.filters.maxPersonalizedPageRank = filterMaxPersonalizedPageRank.value.trim();
+                    state.filters.minInfluence = filterMinInfluence.value.trim();
+                    state.filters.maxInfluence = filterMaxInfluence.value.trim();
+                    state.filters.minAverage = filterMinAverage.value.trim();
+                    state.filters.maxAverage = filterMaxAverage.value.trim();
+                    state.filters.minConfidence = filterMinConfidence.value.trim();
+                    state.filters.maxConfidence = filterMaxConfidence.value.trim();
+                    state.filters.minInput = filterMinInput.value.trim();
+                    state.filters.maxInput = filterMaxInput.value.trim();
+                    state.filters.minVerifiedFollowers = filterMinVerifiedFollowers.value.trim();
+                    state.filters.maxVerifiedFollowers = filterMaxVerifiedFollowers.value.trim();
+                    state.filters.minNip56TotalGrapeRankScore = filterMinNip56TotalGrapeRankScore.value.trim();
+                    state.filters.maxNip56TotalGrapeRankScore = filterMaxNip56TotalGrapeRankScore.value.trim();
+                    state.filters.minNip56TotalVerifiedReportCount = filterMinNip56TotalVerifiedReportCount.value.trim();
+                    state.filters.maxNip56TotalVerifiedReportCount = filterMaxNip56TotalVerifiedReportCount.value.trim();
+                    state.filters.minNip56TotalReportCount = filterMinNip56TotalReportCount.value.trim();
+                    state.filters.maxNip56TotalReportCount = filterMaxNip56TotalReportCount.value.trim();
+                    // state.pagination.limit = parseInt(limitSelect.value);
+                    // state.pagination.page = 1; // Reset to first page
+                    fetchProfiles();
+                });
+                
+                resetFiltersBtn.addEventListener('click', () => {
+                    filterNpub.value = '';
+                    filterPubkey.value = '';
+                    filterMinHops.value = '';
+                    filterMaxHops.value = '';
+                    filterMinPersonalizedPageRank.value = '';
+                    filterMaxPersonalizedPageRank.value = '';
+                    filterMinInfluence.value = '';
+                    filterMaxInfluence.value = '';
+                    filterMinAverage.value = '';
+                    filterMaxAverage.value = '';
+                    filterMinConfidence.value = '';
+                    filterMaxConfidence.value = '';
+                    filterMinInput.value = '';
+                    filterMaxInput.value = '';
+                    filterMinVerifiedFollowers.value = '';
+                    filterMaxVerifiedFollowers.value = '';
+                    filterMinNip56TotalGrapeRankScore.value = '';
+                    filterMaxNip56TotalGrapeRankScore.value = '';
+                    filterMinNip56TotalVerifiedReportCount.value = '';
+                    filterMaxNip56TotalVerifiedReportCount.value = '';
+                    filterMinNip56TotalReportCount.value = '';
+                    filterMaxNip56TotalReportCount.value = '';
+                    
+                    state.filters.pubkey = '';
+                    state.filters.minHops = '';
+                    state.filters.maxHops = '';
+                    state.filters.minPersonalizedPageRank = '';
+                    state.filters.maxPersonalizedPageRank = '';
+                    state.filters.minInfluence = '';
+                    state.filters.maxInfluence = '';
+                    state.filters.minAverage = '';
+                    state.filters.maxAverage = '';
+                    state.filters.minConfidence = '';
+                    state.filters.maxConfidence = '';
+                    state.filters.minInput = '';
+                    state.filters.maxInput = '';
+                    state.filters.minVerifiedFollowers = '';
+                    state.filters.maxVerifiedFollowers = '';
+                    state.filters.minNip56TotalGrapeRankScore = '';
+                    state.filters.maxNip56TotalGrapeRankScore = '';
+                    state.filters.minNip56TotalVerifiedReportCount = '';
+                    state.filters.maxNip56TotalVerifiedReportCount = '';
+                    state.filters.minNip56TotalReportCount = '';
+                    state.filters.maxNip56TotalReportCount = '';
+                    state.pagination.limit = 100;
+                    state.pagination.page = 1;
+                    
+                    fetchProfiles();
+                });
+                
+                // Refresh button
+                refreshBtn.addEventListener('click', () => {
+                    fetchProfiles();
+                });
+                
+                // Export CSV button
+                exportCsvBtn.addEventListener('click', exportToCsv);
+                
+                // Column settings button
+                columnSettingsBtn.addEventListener('click', toggleColumnSettingsPanel);
+                
+                // Close column settings panel when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!columnSettingsPanel.contains(e.target) && e.target !== columnSettingsBtn) {
+                        columnSettingsPanel.style.display = 'none';
+                    }
+                });
+                
+                // Initialize column toggles
+                initColumnToggles();
+                
+                // Reset Defaults button
+                const resetDefaultsBtn = document.getElementById('resetColumnDefaultsBtn');
+                if (resetDefaultsBtn) {
+                    resetDefaultsBtn.addEventListener('click', function() {
+                        const isNarrow = window.innerWidth <= 700;
+                        state.columnVisibility = {};
+                        columns.forEach(col => {
+                            if (isNarrow) {
+                                state.columnVisibility[col.id] = (
+                                    col.id === 'profile-pic-col' ||
+                                    col.id === 'verifiedFollowerCount' ||
+                                    col.id === 'influence'
+                                );
+                            } else {
+                                state.columnVisibility[col.id] = true;
+                            }
+                        });
+                        saveColumnVisibility();
+                        initColumnToggles();
+                        applyColumnVisibility();
+                        renderTable();
+                    });
+                }
+            }
+            
+            function renderTable() {
+                console.log(`renderTable`);
+                // Clear the table body
+                tableBody.innerHTML = '';
+                
+                // Apply column visibility
+                applyColumnVisibility();
+                
+                // Switch table to compact-table mode if needed
+                const tableElem = document.getElementById('mainProfilesTable');
+                if (isCompactTableMode()) {
+                    tableElem.classList.remove('compact-table');
+                } else {
+                    tableElem.classList.add('compact-table');
+                }
+
+                // Render profiles
+                state.profiles.forEach(profile => {
+                    const row = document.createElement('tr');
+
+                    // Profile picture cell (always visible)
+                    const profilePicCell = document.createElement('td');
+                    profilePicCell.className = 'profile-pic-cell';
+                    profilePicCell.dataset.column = 'profile-pic-col';
+                    profilePicCell.dataset.pubkey = profile.pubkey;
+                    profilePicCell.setAttribute('data-label', 'Pic');
+                    const profileLink = document.createElement('a');
+                    profileLink.href = `/profile.html?pubkey=${encodeURIComponent(profile.pubkey)}`;
+                    profileLink.target = '_blank';
+                    profileLink.className = 'profile-pic-link';
+                    profilePicCell.appendChild(profileLink);
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'default-profile-pic';
+                    placeholder.textContent = profile.pubkey.substring(0, 2).toUpperCase();
+                    profileLink.appendChild(placeholder);
+                    loadProfilePicture(profile.pubkey, profilePicCell, profileLink);
+                    row.appendChild(profilePicCell);
+
+                    // Render only visible columns
+                    columns.forEach(col => {
+                        if (col.id === 'profile-pic-col') return; // already handled
+                        if (state.columnVisibility && state.columnVisibility[col.id] === false) return;
+
+                        // if col.id == 'npub', then display only the first 12 characters
+                        if (col.id === 'npub') {
+                            const npubCell = document.createElement('td');
+                            npubCell.className = 'npub-cell';
+                            npubCell.dataset.column = 'npub';
+                            npubCell.setAttribute('data-label', col.name);
+                            if (profile.npub) { npubCell.textContent = profile.npub.substring(0, 12) + '...'; } else { npubCell.textContent = ''; }
+                            npubCell.title = profile.npub;
+                            row.appendChild(npubCell);
+                        } else if (col.id === 'pubkey') {
+                            const pubkeyCell = document.createElement('td');
+                            pubkeyCell.className = 'pubkey-cell';
+                            pubkeyCell.dataset.column = 'pubkey';
+                            pubkeyCell.setAttribute('data-label', col.name);
+                            const pubkeyLink = document.createElement('a');
+                            pubkeyLink.href = `https://njump.me/p/${profile.pubkey}`;
+                            pubkeyLink.target = '_blank';
+                            pubkeyLink.className = 'pubkey-link';
+                            pubkeyLink.textContent = profile.pubkey.substring(0, 12) + '...';
+                            pubkeyLink.title = profile.pubkey;
+                            pubkeyCell.appendChild(pubkeyLink);
+                            row.appendChild(pubkeyCell);
+                        } else {
+                            // Numeric/data cells
+                            let value = profile[col.id];
+                            // correct for discrepancies between NIP-56 and GrapeRank
+                            if (col.id === 'nip56TotalGrapeRankScore') value = profile.nip56_totalGrapeRankScore;
+                            if (col.id === 'nip56TotalVerifiedReportCount') value = profile.nip56_totalVerifiedReportCount;
+                            if (col.id === 'nip56TotalReportCount') value = profile.nip56_totalReportCount;
+                            let decimals = 0;
+                            if (col.id === 'personalizedPageRank' || col.id === 'influence') decimals = 6;
+                            else if (col.id === 'average' || col.id === 'confidence' || col.id === 'input') decimals = 2;
+                            addNumericCell(row, value, decimals, col.id, col.name);
+                        }
+                    });
+
+                    tableBody.appendChild(row);
+                });
+                
+                if (state.profiles.length === 0) {
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.colSpan = 9;
+                    cell.textContent = 'No profiles found matching the current filters';
+                    cell.style.textAlign = 'center';
+                    cell.style.padding = '20px';
+                    row.appendChild(cell);
+                    tableBody.appendChild(row);
+                }
+                
+                // Update sorting indicators in the table header
+                updateSortIndicators(state.sorting.column, state.sorting.order);
+            }
+            
+            /**
+             * Load profile picture for a pubkey
+             * @param {string} pubkey - User's public key
+             * @param {HTMLElement} cell - The cell to update with the profile picture
+             * @param {HTMLElement} link - The link element containing the profile picture
+             */
+            function loadProfilePicture(pubkey, cell, link) {
+                // Check if we already have this profile in the cache
+                if (state.profileCache[pubkey]) {
+                    updateProfilePictureWithData(link, state.profileCache[pubkey]);
+                    return;
+                }
+                
+                // Fetch profile data
+                fetch(`/control/api/get-kind0?pubkey=${pubkey}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        let profileData = null;
+                        
+                        // Process the profile data if available
+                        if (data && data.success && data.data && data.data.content) {
+                            try {
+                                profileData = JSON.parse(data.data.content);
+                                
+                                // Cache the profile data
+                                state.profileCache[pubkey] = profileData;
+                                
+                                // Update the picture with the profile data
+                                updateProfilePictureWithData(link, profileData);
+                            } catch (error) {
+                                console.error('Error parsing profile data:', error);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching profile data:', error);
+                    });
+            }
+            
+            /**
+             * Update a profile picture with profile data
+             * @param {HTMLElement} link - The link element containing the profile picture
+             * @param {Object} profileData - The profile data object
+             */
+            function updateProfilePictureWithData(link, profileData) {
+                // Don't clear the link entirely - just replace its contents if needed
+                
+                if (profileData && profileData.picture) {
+                    // Remove existing placeholder
+                    link.innerHTML = '';
+                    
+                    // Create image element for the profile picture
+                    const img = document.createElement('img');
+                    img.src = profileData.picture;
+                    img.alt = profileData.name || 'Profile Picture';
+                    img.onerror = function() {
+                        // If image fails to load, use the placeholder
+                        this.style.display = 'none';
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'default-profile-pic';
+                        placeholder.textContent = profileData.name ? profileData.name.substring(0, 2).toUpperCase() : '??';
+                        link.appendChild(placeholder);
+                    };
+                    link.appendChild(img);
+                } else if (profileData && profileData.name) {
+                    // If we have a name but no picture, update the placeholder to use the name
+                    link.innerHTML = '';
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'default-profile-pic';
+                    placeholder.textContent = profileData.name.substring(0, 2).toUpperCase();
+                    link.appendChild(placeholder);
+                }
+                
+                // Add title/tooltip with user's name if available
+                if (profileData && (profileData.display_name || profileData.name)) {
+                    link.title = profileData.display_name || profileData.name;
+                }
+            }
+            
+            function addNumericCell(row, value, decimals = 0, columnId, columnLabel) {
+                const cell = document.createElement('td');
+                cell.className = 'numeric-cell';
+                cell.dataset.column = columnId;
+                if (columnLabel) {
+                    cell.setAttribute('data-label', columnLabel);
+                }
+                if (value !== null && value !== undefined) {
+                    const formattedValue = typeof value === 'number' 
+                        ? value.toFixed(decimals)
+                        : value;
+                    cell.textContent = formattedValue;
+                } else {
+                    cell.textContent = '-';
+                }
+                
+                row.appendChild(cell);
+            }
+            
+            function renderPagination() {
+                // Clear existing pagination
+                paginationContainer.innerHTML = '';
+                
+                // Create pagination controls
+                const totalPages = state.pagination.pages;
+                const currentPage = state.pagination.page;
+                
+                // Previous button
+                const prevButton = document.createElement('button');
+                prevButton.textContent = '←';
+                prevButton.disabled = currentPage === 1;
+                prevButton.addEventListener('click', () => {
+                    if (currentPage > 1) {
+                        state.pagination.page = currentPage - 1;
+                        fetchProfiles();
+                    }
+                });
+                paginationContainer.appendChild(prevButton);
+                
+                // Page selector (dropdown)
+                const pageSelect = document.createElement('select');
+                pageSelect.className = 'pagination-select';
+                for (let i = 1; i <= totalPages; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = `Page ${i}`;
+                    if (i === currentPage) option.selected = true;
+                    pageSelect.appendChild(option);
+                }
+                pageSelect.addEventListener('change', function() {
+                    state.pagination.page = parseInt(this.value, 10);
+                    fetchProfiles();
+                });
+                paginationContainer.appendChild(pageSelect);
+                
+                // Next button
+                const nextButton = document.createElement('button');
+                nextButton.textContent = '→';
+                nextButton.disabled = currentPage === totalPages;
+                nextButton.addEventListener('click', () => {
+                    if (currentPage < totalPages) {
+                        state.pagination.page = currentPage + 1;
+                        fetchProfiles();
+                    }
+                });
+                paginationContainer.appendChild(nextButton);
+                
+                // Render page size selector
+                renderPageSizeSelector();
+            }
+
+            function renderPageSizeSelector() {
+                let pageSizeContainer = document.getElementById('pageSizeContainer');
+                if (!pageSizeContainer) {
+                    pageSizeContainer = document.createElement('div');
+                    pageSizeContainer.id = 'pageSizeContainer';
+                    pageSizeContainer.className = 'pagination';
+                    paginationContainer.parentNode.appendChild(pageSizeContainer);
+                }
+                pageSizeContainer.innerHTML = '';
+                const pageSizeSelect = document.createElement('select');
+                pageSizeSelect.className = 'pagination-select';
+                [50, 100, 250, 500].forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = `Page Size: ${opt}`;
+                    if (opt === state.pagination.limit) option.selected = true;
+                    pageSizeSelect.appendChild(option);
+                });
+                pageSizeSelect.addEventListener('change', function() {
+                    state.pagination.limit = parseInt(this.value, 10);
+                    state.pagination.page = 1;
+                    fetchProfiles();
+                });
+                pageSizeContainer.appendChild(pageSizeSelect);
+                pageSizeContainer.style.display = '';
+            }
+            
+            function updateSortIndicators(column, order) {
+                // Remove existing sort indicators
+                const headers = document.querySelectorAll('th');
+                headers.forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                });
+                
+                // Add indicator to current sort column
+                const currentHeader = document.querySelector(`th[data-sort="${column}"]`);
+                if (currentHeader) {
+                    currentHeader.classList.add(order === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            }
+            
+            function showStatusMessage(message, type) {
+                statusMessage.textContent = message;
+                statusMessage.className = `status ${type}`;
+                statusMessage.style.display = 'block';
+                
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Update the profile count displays
+            function updateProfileCounts() {
+                document.getElementById('filteredCount').textContent = state.counts.filtered.toLocaleString();
+                document.getElementById('totalCount').textContent = state.counts.total.toLocaleString();
+            }
+            
+            function exportToCsv() {
+                // Only export visible columns
+                const visibleColumns = columns.filter(col => state.columnVisibility && state.columnVisibility[col.id] !== false);
+                
+                // Create CSV header
+                let csvContent = visibleColumns.map(col => `"${col.name}"`).join(',') + '\n';
+                
+                // Add data rows
+                state.profiles.forEach(profile => {
+                    const row = [];
+                    
+                    visibleColumns.forEach(column => {
+                        switch(column.id) {
+                            case 'profile-pic-col':
+                                row.push(''); // Skip profile picture in CSV
+                                break;
+                            case 'pubkey':
+                                row.push(`"${profile.pubkey}"`);
+                                break;
+                            case 'verifiedFollowerCount':
+                                row.push(profile.verifiedFollowerCount || 0);
+                                break;
+                            case 'nip56TotalGrapeRankScore':
+                                row.push(profile.nip56_totalGrapeRankScore || 0);
+                                break;
+                            case 'nip56TotalVerifiedReportCount':
+                                row.push(profile.nip56_totalVerifiedReportCount || 0);
+                                break;
+                            case 'nip56TotalReportCount':
+                                row.push(profile.nip56_totalReportCount || 0);
+                                break;
+                            case 'hops':
+                                row.push(profile.hops || 0);
+                                break;
+                            case 'personalizedPageRank':
+                                row.push(profile.personalizedPageRank?.toFixed(6) || 0);
+                                break;
+                            case 'influence':
+                                row.push(profile.influence?.toFixed(6) || 0);
+                                break;
+                            case 'average':
+                                row.push(profile.average?.toFixed(2) || 0);
+                                break;
+                            case 'confidence':
+                                row.push(profile.confidence?.toFixed(2) || 0);
+                                break;
+                            case 'input':
+                                row.push(profile.input?.toFixed(2) || 0);
+                                break;
+                            default:
+                                row.push('');
+                        }
+                    });
+                    
+                    csvContent += row.join(',') + '\n';
+                });
+                
+                // Create and trigger download
+                const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
+                const link = document.createElement('a');
+                link.setAttribute('href', encodedUri);
+                link.setAttribute('download', `brainstorm-profiles-${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatusMessage('CSV export completed', 'success');
+            }
+
+            // Save column visibility settings to localStorage
+            function saveColumnVisibility() {
+                localStorage.setItem('profilesColumnVisibility', JSON.stringify(state.columnVisibility));
+            }
+            
+            // Initialize column toggle checkboxes
+            function initColumnToggles() {
+                // Clear existing toggles
+                columnToggles.innerHTML = '';
+                
+                // Create toggle for each column
+                columns.forEach(column => {
+                    const toggleDiv = document.createElement('div');
+                    toggleDiv.className = 'column-toggle';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `toggle-${column.id}`;
+                    checkbox.checked = state.columnVisibility && state.columnVisibility[column.id] !== false;
+                    checkbox.disabled = column.alwaysVisible === true;
+                    
+                    checkbox.addEventListener('change', () => {
+                        state.columnVisibility[column.id] = checkbox.checked;
+                        saveColumnVisibility();
+                        applyColumnVisibility();
+                    });
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = `toggle-${column.id}`;
+                    label.textContent = column.name;
+                    
+                    toggleDiv.appendChild(checkbox);
+                    toggleDiv.appendChild(label);
+                    columnToggles.appendChild(toggleDiv);
+                });
+            }
+            
+            // Apply column visibility settings to the table
+            function applyColumnVisibility() {
+                // Apply to header cells
+                const headerCells = document.querySelectorAll('#mainProfilesTable th');
+                headerCells.forEach(cell => {
+                    const columnId = cell.getAttribute('data-sort') || cell.className;
+                    
+                    if (columnId && state.columnVisibility && state.columnVisibility[columnId] === false) {
+                        cell.classList.add('hidden-column');
+                    } else {
+                        cell.classList.remove('hidden-column');
+                    }
+                });
+                
+                // Apply to filter row cells
+                const filterCells = document.querySelectorAll('.filter-row th');
+                filterCells.forEach((cell, index) => {
+                    const headerCell = headerCells[index];
+                    if (headerCell && headerCell.classList.contains('hidden-column')) {
+                        cell.classList.add('hidden-column');
+                    } else {
+                        cell.classList.remove('hidden-column');
+                    }
+                });
+                
+                // Apply to data cells
+                const dataCells = document.querySelectorAll('#mainProfilesTable tbody td');
+                dataCells.forEach(cell => {
+                    const columnId = cell.dataset.column;
+                    if (columnId && state.columnVisibility && state.columnVisibility[columnId] === false) {
+                        cell.classList.add('hidden-column');
+                    } else {
+                        cell.classList.remove('hidden-column');
+                    }
+                });
+            }
+            
+            // Toggle column settings panel visibility
+            function toggleColumnSettingsPanel() {
+                const panel = document.getElementById('columnSettingsPanel');
+                if (panel.style.display === 'none' || panel.style.display === '') {
+                    panel.style.display = 'block';
+                } else {
+                    panel.style.display = 'none';
+                }
+            }
+            
+            // Initialize observer selector component
+            function initializeObserverSelector() {
+                observerSelector = new ObserverSelector('observerSelectorContainer', {
+                    defaultValue: 'owner',
+                    customersEndpoint: '/control/api/get-customers',
+                    onChange: function(selectedPubkey, customerData) {
+                        // Update state
+                        state.observerPubkey = selectedPubkey;
+                        
+                        // Reset pagination to first page when changing observer
+                        state.pagination.page = 1;
+                        
+                        // Refresh data with new observer
+                        fetchProfiles();
+                        
+                        // Show status message
+                        const observerName = customerData.isOwner ? 'Global' : customerData.customerName;
+                        showStatusMessage(`Switched to ${observerName} perspective`, 'success');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

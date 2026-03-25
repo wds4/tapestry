@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/grapevine-analysis.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <h1>Grapevine Analysis</h1>
+            <div class="section">
+                <p>Grapevine Analysis looks at interactions between your social graph and another user's social graph.</p>
+                <p>Each Graph is the result of a cypher query that takes two inputs: owner pubkey (you) and this user's pubkey.</p>
+                <p>Some queries, such as Frens, Groupies, and Idols, use only the user pubkey, while others use both pubkeys. Those are still considered TSG because the results of those queries are used in more complex TSG lists.</p>
+                <p>Each Graph has its own unique cypher query.</p>
+                <p>Each Query returns a list of pubkeys.</p>
+                <p>The results of the query are displayed in table format. (Techically it's a list, not a graph?)</p>
+                <p>There are 5 TSG Lists:</p>
+                <li>Frens</li>
+                <li>Groupies</li>
+                <li>Idols</li>
+                <li>Recommended Follows (You → Owner)</li>
+                <li>Recommended Follows (Owner → You)</li>
+            </div>
+            <div class="section" id="grapevine-result-section">
+                <p id="grapevine-status">Loading analysis...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+    <script>
+    // Helper to get query params
+    function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+
+    // Required variables
+    const observer = getQueryParam('observer');
+    const observee = getQueryParam('observee');
+    const interactionType = getQueryParam('interactionType');
+
+    // Validate parameters
+    function isValidPubkey(pubkey) {
+        return typeof pubkey === 'string' && pubkey.length >= 32;
+    }
+    function isValidInteractionType(type) {
+        return typeof type === 'string' && type.length > 0;
+    }
+
+    const statusElem = document.getElementById('grapevine-status');
+    if (!isValidPubkey(observer) || !isValidPubkey(observee) || !isValidInteractionType(interactionType)) {
+        statusElem.textContent = 'Invalid or missing parameters. Please check the link.';
+    } else {
+        // Call the API
+        fetch(`/api/get-grapevine-interaction?observer=${encodeURIComponent(observer)}&observee=${encodeURIComponent(observee)}&interactionType=${encodeURIComponent(interactionType)}`)
+            .then(resp => resp.json())
+            .then(data => {
+                if (data.success && Array.isArray(data.data)) {
+                    statusElem.textContent = `Number of items: ${data.data.length}`;
+                } else {
+                    statusElem.textContent = 'API error: ' + (data.message || 'Unknown error');
+                }
+            })
+            .catch(err => {
+                statusElem.textContent = 'Network/API error: ' + err;
+            });
+    }
+    </script>
+</body>
+</html>

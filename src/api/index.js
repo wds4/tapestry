@@ -1,0 +1,499 @@
+/**
+ * Brainstorm API module index
+ * Registers all API endpoints for the Brainstorm control panel
+ */
+
+// Import API modules
+const { getStrfryStatus } = require('./strfry/strfryStatus');
+const { handleRouterStatus } = require('./strfry/routerStatus');
+const { handleUpdateRouterConfig, handleToggleStream, handleGetPresets, handleListPlugins, handleRestartRouter, handleRestoreDefaults, initRouter } = require('./strfry/routerConfig');
+const { handleWipeStrfry } = require('./strfry/wipe');
+const { getNeo4jStatus } = require('./neo4j/neo4jStatus');
+const { runQuery } = require('./neo4j/runQuery');
+const { queryPost } = require('./neo4j/queryPost');
+const { getListStatus } = require('./lists/listStatus');
+const { getRankingStatus } = require('./ranking/rankingStatus');
+const { getNetworkStatus } = require('./network/networkStatus');
+const { getDebugInfo } = require('./debug');
+const { 
+    handleAuthVerify, 
+    handleAuthLogin, 
+    handleAuthLogout, 
+    handleAuthStatus,
+    handleAuthTest,
+    handleAuthVerifyUser,
+    handleAuthLoginUser
+} = require('../middleware/auth');
+const { handleGetUserClassification } = require('./auth/getUserClassification');
+const { handleSignUpNewCustomer } = require('./auth/signUpNewCustomer');
+const { handleGetOwnerInfo } = require('./owner/ownerInfo');
+const { handleGetGrapevineInteraction } = require('./grapevineInteractions/queries');
+const { handleOldSearchProfiles, handleOldSearchProfilesStream } = require('./search/profiles');
+const { handleKeywordSearchProfiles } = require('./search/profiles/keyword');
+const { handlePrecomputeWhitelistMaps, handlePrecomputeWhitelistStatus } = require('./search/profiles/whitelistPrecompute');
+const { handleGetRecentlyActivePubkeys } = require('./content/queries/recentlyActivePubkeys');
+const getTaskDashboardState = require('./taskDashboard/getTaskDashboardState');
+const getTaskExplorerData = require('./taskExplorer/getTaskExplorerData');
+const getTaskExplorerSingleTaskData = require('./taskExplorer/getTaskExplorerSingleTaskData');
+const {
+    handleGetHistoryHops,
+    handleGetHistoryPersonalizedPageRank,
+    handleGetHistoryPersonalizedGrapeRank,
+    handleGetHistoryAnalyzeFollowsMutesReports,
+    handleGetHistoryKind30382Export,
+    handleGetHistoryProcessAllTrustMetrics
+} = require('./algos/calculation-history');
+
+const { handleGetGrapeRankConfig, handleUpdateGrapeRankConfig } = require('./algos/config');
+const { handleGetConfig, handleUpdateConfig } = require('./algos/config');
+
+// Import domain-specific handler modules
+const nip85 = require('./export/nip85');
+const nip19 = require('./export/nip19');
+const profiles = require('./export/profiles');
+const relay = require('./export/relay');
+const users = require('./export/users');
+const blacklist = require('./export/blacklist');
+const whitelist = require('./export/whitelist');
+const services = require('./export/services');
+const strfry = require('./strfry');
+const pipeline = require('./pipeline');
+const algos = require('./algos');
+const graperank = require('./export/graperank');
+const manage = require('./manage');
+const lists = require('./lists');
+const status = require('./status');
+const customers = require('./customers/index.js');
+const neo4jHealth = require('./neo4j-health/index.js');
+const neo4jLogs = require('./neo4j-logs/index.js');
+const neo4jConfig = require('./neo4j-config/index.js');
+const taskWatchdog = require('./task-watchdog/index.js');
+const taskAnalytics = require('./task-analytics/index.js');
+const serviceManagement = require('./service-management/index.js');
+
+const { handleNeo4jSetupConstraintsAndIndexes } = require('./neo4j/commands/setupConstraintsAndIndexes.js');
+const { handleEventCheck, handleEventUpdate, handleEventUuids } = require('./neo4j/eventSync.js');
+const { handleFetchProfiles } = require('./profiles/fetchProfiles.js');
+const { handleFetchExternalReactions } = require('./reactions/fetchReactions.js');
+const { handleFetchExternalEvents } = require('./relay/fetchEvents.js');
+const { requireOwner, handleGetSettings, handleGetDefaults, handleGetOverrides, handleUpdateSettings, handleResetSetting } = require('./settings/settingsApi.js');
+
+// Import utilities
+const { getConfigFromFile } = require('../utils/config');
+
+/**
+ * Register all API endpoints with the Express app
+ * @param {Object} app - Express app instance
+ */
+async function register(app) {
+    // We need to make sure session middleware is applied to the app
+    // Check if it's already been applied
+    if (!app._brainstormSessionConfigured) {
+        console.log('Configuring session middleware for Brainstorm API...');
+        
+        // Load express-session only if needed
+        const session = require('express-session');
+        
+        // Configure session middleware - this must match the main app's configuration
+        app.use(session({
+            secret: getConfigFromFile('SESSION_SECRET', 'brainstorm-default-session-secret-please-change-in-production'),
+            resave: false,
+            saveUninitialized: true,
+            cookie: { secure: false } // Set secure:true if using HTTPS
+        }));
+        
+        // Mark session as configured
+        app._brainstormSessionConfigured = true;
+    }
+
+    app.get('/api/algos/config/get/graperank', handleGetGrapeRankConfig);
+    app.post('/api/algos/config/update/graperank', handleUpdateGrapeRankConfig);
+
+    app.get('/api/algos/config/get', handleGetConfig); // /api/algos/config/get?pubkey=0xpubkey&configType=graperank
+    app.post('/api/algos/config/update', handleUpdateConfig); // /api/algos/config/update?pubkey=0xpubkey&configType=graperank&setPreset=permissive
+
+    app.get('/api/calculation-history/processAllTrustMetrics', handleGetHistoryProcessAllTrustMetrics);
+    app.get('/api/calculation-history/hops', handleGetHistoryHops);
+    app.get('/api/calculation-history/personalizedPageRank', handleGetHistoryPersonalizedPageRank);
+    app.get('/api/calculation-history/personalizedGrapeRank', handleGetHistoryPersonalizedGrapeRank);
+    app.get('/api/calculation-history/analyzeFollowsMutesReports', handleGetHistoryAnalyzeFollowsMutesReports);
+    app.get('/api/calculation-history/kind30382Export', handleGetHistoryKind30382Export);
+    
+    // Register new modular endpoints for both paths
+    // TODO: might move these to status module 
+    app.get('/api/strfry-status', getStrfryStatus);
+    app.get('/api/strfry/router-status', handleRouterStatus);
+    app.get('/api/strfry/router-presets', handleGetPresets);
+    app.post('/api/strfry/router-config', handleUpdateRouterConfig);
+    app.post('/api/strfry/router-toggle', handleToggleStream);
+    app.get('/api/strfry/router-plugins', handleListPlugins);
+    app.post('/api/strfry/router-restart', handleRestartRouter);
+    app.post('/api/strfry/router-restore-defaults', handleRestoreDefaults);
+    app.post('/api/strfry/wipe', handleWipeStrfry);
+
+    app.get('/api/list-status', getListStatus);
+    
+    app.get('/api/ranking-status', getRankingStatus);
+    
+    app.get('/api/network-status', getNetworkStatus);
+    
+    // Debug endpoint for troubleshooting server issues
+    app.get('/api/debug', getDebugInfo);
+    
+    // Authentication endpoints
+    app.post('/api/auth/verify', handleAuthVerify);
+    
+    app.post('/api/auth/login', handleAuthLogin);
+    
+    // User authentication endpoints (for any user, not just owner)
+    app.post('/api/auth/verify-user', handleAuthVerifyUser);
+    
+    app.post('/api/auth/login-user', handleAuthLoginUser);
+    
+    app.post('/api/auth/logout', handleAuthLogout);
+    
+    app.get('/api/auth/status', handleAuthStatus);
+    
+    // Get user classification (owner/customer/regular user)
+    app.get('/api/auth/user-classification', handleGetUserClassification);
+
+    // Sign up new customer
+    app.post('/api/auth/sign-up-new-customer', handleSignUpNewCustomer);
+    
+    // Test endpoint for debugging authentication
+    app.get('/api/auth/test', handleAuthTest);
+    
+    // Backward compatibility endpoint that calls all endpoints and combines results
+    app.get('/api/instance-status', handleGetInstanceStatus);
+    
+    // Register all domain-specific endpoints in the central router
+    
+    // NIP-85 endpoints 
+    // Command endpoints (write operations requiring authentication)
+    app.post('/api/generate-nip85', nip85.handleGenerateNip85);
+    app.post('/api/create-kind10040', nip85.handleCreateKind10040);
+    app.post('/api/publish-kind10040-event', nip85.handlePublishKind10040);
+    app.post('/api/create-and-publish-kind10040', nip85.handleCreateAndPublishKind10040);
+    app.post('/api/create-unsigned-kind10040', nip85.handleCreateUnsignedKind10040);
+    app.post('/api/publish-signed-kind10040', nip85.handlePublishSignedKind10040);
+    app.post('/api/publish-kind30382', nip85.handlePublishKind30382);
+    // app.post('/api/publish', nip85.handlePublish);
+    
+    // Query endpoints (read operations)
+    app.get('/api/get-kind10040-event', nip85.handleGetKind10040Event);
+    app.get('/api/get-kind10040-info', nip85.handleGetKind10040Info);
+    app.get('/api/get-kind30382-info', nip85.handleGetKind30382Info);
+    app.get('/api/get-nip85-status', nip85.handleGetNip85Status);
+    app.get('/api/get-all-10040-authors-locally', nip85.handleGetAll10040AuthorsLocally);
+    app.get('/api/get-all-10040-authors-externally', nip85.handleGetAll10040AuthorsExternally);
+    app.get('/api/get-30382-count-externally', nip85.handleGet30382CountExternally);
+    
+    app.get('/api/validate-encoding', nip19.handleValidateEncoding);
+
+    // Profiles endpoint
+    app.get('/api/get-kind0', profiles.handleGetKind0Event);
+
+    // Relay endpoint
+    app.get('/api/relay-config', relay.handleGetRelayConfig);
+
+    // Users endpoints
+    app.get('/api/get-profiles', users.handleGetProfiles);
+    app.get('/api/get-profile-scores', users.handleGetProfileScores);
+    app.get('/api/get-nip56-profiles', users.handleGetNip56Profiles);
+    app.get('/api/get-user-data', users.handleGetUserData);
+    app.get('/api/get-network-proximity', users.handleGetNetworkProximity);
+    app.get('/api/get-npub-from-pubkey', users.handleGetNpubFromPubkey);
+    app.get('/api/get-pubkey-from-npub', users.handleGetPubkeyFromNpub);
+
+    // GrapeRank endpoints
+    app.get('/api/get-graperank-config', graperank.handleGetGrapeRankConfig);
+    app.post('/api/post-graperank-config', graperank.handleUpdateGrapeRankConfig);
+    app.post('/api/generate-graperank', algos.graperank.handleGenerateGrapeRank);
+    app.get('/api/get-graperank-review', graperank.handleGetGrapeRankReview);
+
+    // Blacklist endpoints
+    app.get('/api/get-blacklist-config', blacklist.handleGetBlacklistConfig);
+    app.post('/api/post-blacklist-config', blacklist.handleUpdateBlacklistConfig);
+    app.post('/api/generate-blacklist', blacklist.handleGenerateBlacklist);
+
+    // Whitelist endpoints
+    app.get('/api/get-whitelist', whitelist.handleGetWhitelist); // fetches whitelist from neo4j; default influence > default; will eventually accept params
+    // TODO: get whitelist from file (not from neo4j)
+    app.get('/api/get-whitelist-config', whitelist.handleGetWhitelistConfig);
+    app.post('/api/post-whitelist-config', whitelist.handleUpdateWhitelistConfig);
+    app.post('/api/export-whitelist', whitelist.handleExportWhitelist);
+    
+    // PageRank endpoints
+    app.post('/api/generate-pagerank', algos.pagerank.handleGeneratePageRank);
+    app.get('/api/personalized-pagerank', algos.pagerank.handleGenerateForApiPageRank);
+
+    // Verified Followers endpoints
+    app.post('/api/generate-verified-followers', algos.verifiedFollowers.handleGenerateVerifiedFollowers);
+
+    // Reports endpoints
+    app.post('/api/generate-reports', algos.reports.handleGenerateReports);
+
+    // Services endpoints
+    app.get('/api/service-status', services.handleServiceStatus);
+    app.get('/api/systemd-services', services.handleSystemdServices);
+
+    // Status endpoints - read-only operations
+    app.get('/api/status', status.handleStatus);
+    app.get('/api/strfry-stats', status.handleStrfryStats);
+    app.get('/api/neo4j-status', status.handleNeo4jStatus);
+    app.get('/api/calculation-status', status.handleCalculationStatus);
+    app.get('/api/status/neo4j-constraints', status.handleGetNeo4jConstraintsStatus);
+
+    // Generic neo4j query endpoint; requires authentication
+    // temporarily disabled
+    app.get('/api/neo4j/run-query', runQuery);       // legacy — deprecate after migration
+    app.post('/api/neo4j/query', queryPost);          // new POST endpoint
+    
+    // Strfry plugin endpoints - with clearer separation of concerns
+    app.get('/api/strfry/scan', strfry.handleStrfryScan);  // Scan events from strfry (public)
+    app.get('/api/strfry/scan', strfry.handleStrfryScan);  // Scan strfry events by filter (public)
+    app.post('/api/strfry/publish', strfry.handlePublishEvent);  // Sign and publish events to strfry
+    app.get('/api/get-strfry-filteredContent', strfry.handleGetFilteredContentStatus);  // Status query (public)
+    app.post('/api/toggle-strfry-filteredContent', strfry.handleToggleStrfryPlugin);  // Toggle command (owner only)
+
+    // List statistics endpoints - read-only operations
+    app.get('/api/whitelist-stats', lists.handleGetWhitelistStats);
+    app.get('/api/blacklist-count', lists.handleGetBlacklistCount);
+    app.get('/api/whitelist-preview-count', lists.handleGetWhitelistPreviewCount);
+    
+    // Algorithm query endpoints - read-only operations
+    app.get('/api/influence-count', algos.graperank.handleGetInfluenceCount);
+    app.get('/api/hops-count', algos.hops.handleGetHopsCount);
+    
+    // Pipeline endpoints
+    app.post('/api/delete-all-relationships', pipeline.handleDeleteAllRelationships);
+    app.post('/api/batch-transfer', pipeline.handleBatchTransfer);
+    app.post('/api/reconciliation', pipeline.handleReconciliation);
+    app.post('/api/negentropy-sync', pipeline.handleNegentropySync);
+
+    // Algos endpoint
+    app.post('/api/calculate-hops', algos.hops.handleCalculateHops);
+
+    // Task execution endpoint
+    app.post('/api/run-task', manage.handleRunTask);
+    // Negentropy sync endpoints
+    app.post('/api/negentropy-sync-wot', manage.handleNegentropySyncWoT);
+    app.post('/api/negentropy-sync-profiles', manage.handleNegentropySyncProfiles);
+    app.post('/api/negentropy-sync-personal', manage.handleNegentropySyncPersonal);
+
+    // Add route handler for Brainstorm control
+    app.post('/api/brainstorm-control', manage.handleBrainstormControl);
+
+    // Add route handler for running service management scripts
+    app.post('/api/run-script', manage.handleRunScript);
+
+    // Neo4j event sync endpoints
+    app.get('/api/neo4j/event-check', handleEventCheck);
+    app.post('/api/neo4j/event-update', handleEventUpdate);
+    app.get('/api/neo4j/event-uuids', handleEventUuids);
+
+    // Profile endpoints
+    app.get('/api/profiles', handleFetchProfiles);
+
+    // Reactions (external relay query)
+    app.get('/api/reactions/external', handleFetchExternalReactions);
+    app.get('/api/relay/external', handleFetchExternalEvents);
+
+    // Settings endpoints (owner-only except GET merged)
+    app.get('/api/settings', requireOwner, handleGetSettings);
+    app.get('/api/settings/defaults', requireOwner, handleGetDefaults);
+    app.get('/api/settings/overrides', requireOwner, handleGetOverrides);
+    app.put('/api/settings', requireOwner, handleUpdateSettings);
+    app.delete('/api/settings/*', requireOwner, handleResetSetting);
+
+    // Neo4j endpoints
+    app.post('/api/neo4j-setup-constraints-and-indexes', handleNeo4jSetupConstraintsAndIndexes);
+
+    // Owner info endpoint
+    app.get('/api/owner-info', handleGetOwnerInfo);
+
+    // Grapevine Interactions endpoint
+    app.get('/api/get-grapevine-interaction', handleGetGrapevineInteraction);
+
+    // Search endpoint
+    app.get('/api/search/profiles', handleOldSearchProfiles);
+    app.get('/api/search/profiles/stream', handleOldSearchProfilesStream);
+    app.get('/api/search/profiles/keyword', handleKeywordSearchProfiles);
+    app.get('/api/search/profiles/keyword/precompute-whitelist-maps', handlePrecomputeWhitelistMaps);
+    app.get('/api/search/profiles/keyword/precompute-whitelist-maps/status', handlePrecomputeWhitelistStatus);
+
+    // Get Customers endpoint
+    app.get('/api/get-customers', customers.handleGetCustomers);
+
+    // Get Customer endpoint
+    app.get('/api/get-customer', customers.handleGetCustomer);
+    
+    // Get Customer Relay Keys endpoint; returns relay keys for a specific customer (owner only)
+    app.get('/api/get-customer-relay-keys', customers.handleGetCustomerRelayKeys);
+    
+    // Create All Customer Relays endpoint; creates all relays for all customers
+    app.post('/api/create-all-customer-relays', customers.handleCreateAllCustomerRelays);
+    
+    // Process All Active Customers endpoint; creates all scores for all active customers
+    app.post('/api/process-all-active-customers', customers.handleProcessAllActiveCustomers);
+
+    // Backup Customers endpoint; owner-only backup of all or single customer data
+    app.post('/api/backup-customers', customers.handleBackupCustomers);
+    // Backups listing and download endpoints
+    app.get('/api/backups', customers.handleListBackups);
+    app.get('/api/backups/download', customers.handleDownloadBackup);
+    
+    // Restore upload, listing, and single-customer restore endpoints
+    app.post('/api/restore/upload', customers.handleRestoreUpload);
+    app.get('/api/restore/sets', customers.handleListRestoreSets);
+    app.post('/api/restore/customer', customers.handleRestoreCustomer);
+    
+    // Add New Customer endpoint; owner-only complete customer creation
+    app.post('/api/add-new-customer', customers.handleAddNewCustomer);
+    
+    // Delete Customer endpoint; owner-only complete customer deletion
+    app.post('/api/delete-customer', customers.handleDeleteCustomer);
+    
+    // Change Customer Status endpoint; owner-only status change (activate/deactivate)
+    app.post('/api/change-customer-status', customers.handleChangeCustomerStatus);
+
+    // Update Customer Display Name endpoint; owner-only display name change
+    app.post('/api/update-customer-display-name', customers.handleUpdateCustomerDisplayName);
+
+    // Recently Active Pubkeys endpoint
+    app.get('/api/get-recently-active-pubkeys', handleGetRecentlyActivePubkeys);
+    
+    // Task Dashboard State endpoint (owner-only)
+    app.get('/api/task-dashboard/state', getTaskDashboardState);
+    
+    // Task Explorer Data endpoint (owner-only)
+    app.get('/api/task-explorer/data', getTaskExplorerData);
+    app.get('/api/task-explorer/single-task/data', getTaskExplorerSingleTaskData);
+
+    // Neo4j Performance Metrics endpoints
+    app.get('/api/neo4j-health/complete', neo4jHealth.handleCompleteNeo4jHealth);
+    app.get('/api/neo4j-health/alerts', neo4jHealth.handleAlertsNeo4jHealth);
+    app.get('/api/neo4j-health/heap-metrics-history', neo4jHealth.handleHeapMetricsHistory);
+    app.get('/api/neo4j-health/preserved-heap-metrics', neo4jHealth.handlePreservedHeapMetrics);
+    app.get('/api/neo4j-health/task-timeline', neo4jHealth.handleTaskTimeline);
+
+    // Neo4j Error Logs endpoints
+    app.get('/api/neo4j-logs/errors', neo4jLogs.getNeo4jErrors);
+
+    // Neo4j Resource Configuration endpoints
+    app.get('/api/neo4j-config/overview', neo4jConfig.handleNeo4jConfigOverview);
+
+    // Task Watchdog Dashboard endpoints
+    app.get('/api/task-watchdog/status', taskWatchdog.handleTaskWatchdogStatus);
+    app.get('/api/task-watchdog/alerts', taskWatchdog.handleTaskWatchdogAlerts);
+    app.get('/api/task-watchdog/stuck-tasks', taskWatchdog.handleStuckTasks);
+    app.get('/api/task-watchdog/orphaned-processes', taskWatchdog.handleOrphanedProcesses);
+
+    // Task Analytics Dashboard endpoints
+    app.get('/api/task-analytics/analytics', taskAnalytics.handleTaskAnalytics);
+
+    // Service Management Dashboard endpoints
+    app.get('/api/service-management/status', serviceManagement.handleServiceStatus);
+    app.post('/api/service-management/control', serviceManagement.handleServiceControl);
+    app.get('/api/service-management/logs', serviceManagement.handleServiceLogs);
+    app.get('/api/task-analytics/trends', taskAnalytics.handleTaskTrends);
+    app.get('/api/task-analytics/predictions', taskAnalytics.handleTaskPredictions);
+    app.get('/api/task-analytics/performance', taskAnalytics.handleTaskPerformance);
+
+    // ── Tapestry Audit API ──
+    const { registerAuditRoutes } = require('./audit');
+    registerAuditRoutes(app);
+
+    // ── Tapestry Normalize API ──
+    const { registerNormalizeRoutes } = require('./normalize');
+    await registerNormalizeRoutes(app);
+
+    // ── Tapestry Firmware API ──
+    const { registerFirmwareApiRoutes } = require('./firmware');
+    registerFirmwareApiRoutes(app);
+
+    const { registerNegentropySyncRoutes } = require('./strfry/negentropySync');
+    registerNegentropySyncRoutes(app);
+
+    // ── Tapestry Property API ──
+    const { registerPropertyRoutes } = require('./property');
+    registerPropertyRoutes(app);
+
+    // ── Trusted List API ──
+    const trustedList = require('./trustedList');
+    trustedList.register(app);
+
+    // ── Tapestry I/O (Import/Export) API ──
+    const { registerIORoutes } = require('./io');
+    registerIORoutes(app);
+
+    // ── Tapestry Key / LMDB Store API ──
+    const { registerTapestryKeyRoutes } = require('./tapestry-key');
+    registerTapestryKeyRoutes(app);
+
+    // Initialize router state (presets → state file → strfry config)
+    await initRouter();
+
+    console.log('Registered all Brainstorm API endpoints');
+}
+
+/**
+ * Legacy handler for combined instance status
+ * This maintains backward compatibility while each endpoint is migrated
+ */
+async function handleGetInstanceStatus(req, res) {
+    console.log('Getting comprehensive instance status (legacy endpoint)');
+    
+    // Create a result object to combine all endpoint results
+    const result = {
+        success: true,
+        timestamp: Math.floor(Date.now() / 1000)
+    };
+    
+    try {
+        // Function to make a GET request to another endpoint
+        const fetchEndpoint = (endpoint) => {
+            return new Promise((resolve, reject) => {
+                // Create a mock request and response to capture the endpoint's output
+                const mockReq = { ...req };
+                const mockRes = {
+                    json: (data) => resolve(data)
+                };
+                
+                // Call the handler directly
+                endpoint(mockReq, mockRes);
+            });
+        };
+        
+        // Fetch data from all endpoints in parallel
+        const [strfryData, neo4jData, listData, rankingData, networkData] = await Promise.all([
+            fetchEndpoint(getStrfryStatus),
+            fetchEndpoint(getNeo4jStatus),
+            fetchEndpoint(getListStatus),
+            fetchEndpoint(getRankingStatus),
+            fetchEndpoint(getNetworkStatus)
+        ]);
+        
+        // Combine the results
+        result.strfry = strfryData;
+        result.neo4j = neo4jData;
+        result.whitelist = listData.whitelist;
+        result.blacklist = listData.blacklist;
+        result.grapeRank = rankingData.grapeRank;
+        result.pageRank = rankingData.pageRank;
+        result.followsNetwork = networkData;
+        
+        console.log('Combined instance status data collected successfully');
+        res.json(result);
+    } catch (error) {
+        console.error('Error collecting combined instance status data:', error);
+        result.success = false;
+        result.error = error.message;
+        res.json(result);
+    }
+}
+
+module.exports = {
+    register,
+    handleGetInstanceStatus
+};

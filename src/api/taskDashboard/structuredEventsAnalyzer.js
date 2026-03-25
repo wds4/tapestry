@@ -1,0 +1,685 @@
+/**
+ * Structured Events Analyzer
+ * 
+ * Analyzes events.jsonl to provide rich insights for the task dashboard:
+ * - Task execution times and performance trends
+ * - Success/failure rates and error analysis
+ * - Real-time progress tracking
+ * - Customer-specific processing status
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+class StructuredEventsAnalyzer {
+    constructor(config) {
+        this.config = config;
+        this.eventsFile = path.join(config.BRAINSTORM_LOG_DIR, 'taskQueue', 'events.jsonl');
+        this.structuredLogFile = path.join(config.BRAINSTORM_LOG_DIR, 'taskQueue', 'structured.log');
+        this.preservedLogFile = path.join(config.BRAINSTORM_LOG_DIR, 'preserved', 'system_metrics_history.jsonl');
+        // join this.preservedLogFile and this.eventsFile into this.combinedLogFile
+        this.combinedLogFile = { ...this.eventsFile, ...this.preservedLogFile };
+        this.taskRegistry = this.loadTaskRegistry();
+        this.diagnostics = {
+            filesChecked: [],
+            eventsFound: 0,
+            parseErrors: 0,
+            lastUpdate: new Date().toISOString()
+        };
+    }
+
+    loadTaskRegistry() {
+        try {
+            const registryPath = path.join(this.config.BRAINSTORM_MODULE_BASE_DIR, 'src', 'manage', 'taskQueue', 'taskRegistry.json');
+            return JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+        } catch (error) {
+            console.error('Error loading task registry:', error.message);
+            return { tasks: {} };
+        }
+    }
+
+    /**
+     * Check if a process ID is still running
+     * This is crucial for detecting silent task failures
+     * Uses ps instead of kill -0 to work across different process owners
+     */
+    isProcessAlive(pid) {
+        if (!pid || isNaN(pid)) {
+            return false;
+        }
+        
+        try {
+            // Use ps to check if process exists (works regardless of process owner)
+            const result = execSync(`ps -p ${pid} -o pid=`, { stdio: 'pipe', encoding: 'utf8' });
+            // If ps finds the process, it returns the PID, otherwise empty/error
+            return result.trim() === pid.toString();
+        } catch (error) {
+            // Process doesn't exist or ps command failed
+            return false;
+        }
+    }
+
+    /**
+     * Load and parse all structured events from available sources
+     */
+    loadEvents() {
+        let events = [];
+        this.diagnostics.filesChecked = [];
+        this.diagnostics.eventsFound = 0;
+        this.diagnostics.parseErrors = 0;
+
+        // Try combinedLogFile.jsonl first (preferred format)
+        if (fs.existsSync(this.combinedLogFile)) {
+            this.diagnostics.filesChecked.push({ file: 'events.jsonl', exists: true, size: fs.statSync(this.combinedLogFile).size });
+            events = this.loadJsonlEvents();
+        } else {
+            this.diagnostics.filesChecked.push({ file: 'events.jsonl', exists: false, size: 0 });
+        }
+
+        // If no events from JSONL, try structured.log as fallback
+        if (events.length === 0 && fs.existsSync(this.structuredLogFile)) {
+            this.diagnostics.filesChecked.push({ file: 'structured.log', exists: true, size: fs.statSync(this.structuredLogFile).size });
+            console.log('No events found in events.jsonl, falling back to structured.log parsing');
+            events = this.loadStructuredLogEvents();
+        } else if (!fs.existsSync(this.structuredLogFile)) {
+            this.diagnostics.filesChecked.push({ file: 'structured.log', exists: false, size: 0 });
+        }
+
+        this.diagnostics.eventsFound = events.length;
+        console.log(`StructuredEventsAnalyzer: Loaded ${events.length} events from ${this.diagnostics.filesChecked.length} file(s)`);
+        
+        return events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    /**
+     * Load events from events.jsonl (preferred format)
+     */
+    loadJsonlEvents() {
+        try {
+            const content = fs.readFileSync(this.combinedLogFile, 'utf8');
+            return content.trim().split('\n')
+                .filter(line => line.trim())
+                .map(line => {
+                    try {
+                        return JSON.parse(line);
+                    } catch (error) {
+                        this.diagnostics.parseErrors++;
+                        console.error('Error parsing JSONL event line:', line.substring(0, 100), error.message);
+                        return null;
+                    }
+                })
+                .filter(event => event !== null);
+        } catch (error) {
+            console.error('Error loading events.jsonl:', error.message);
+            return [];
+        }
+    }
+
+    /**
+     * Load events from structured.log (fallback format)
+     * Parse human-readable log entries like:
+     * [2025-08-08T20:36:20+00:00] [INFO] [structuredLogging.sh:176] Task event: TASK_START processAllActiveCustomers [target=message=Starting processing of all active customers pid=4176325]
+     */
+    loadStructuredLogEvents() {
+        try {
+            const content = fs.readFileSync(this.structuredLogFile, 'utf8');
+            const events = [];
+            
+            const lines = content.split('\n').filter(line => line.includes('Task event:'));
+            
+            for (const line of lines) {
+                try {
+                    const event = this.parseStructuredLogLine(line);
+                    if (event) {
+                        events.push(event);
+                    }
+                } catch (error) {
+                    this.diagnostics.parseErrors++;
+                    console.error('Error parsing structured log line:', line.substring(0, 100), error.message);
+                }
+            }
+            
+            return events;
+        } catch (error) {
+            console.error('Error loading structured.log:', error.message);
+            return [];
+        }
+    }
+
+    /**
+     * Parse a single structured log line into an event object
+     */
+    parseStructuredLogLine(line) {
+        // Example: [2025-08-08T20:36:20+00:00] [INFO] [structuredLogging.sh:176] Task event: TASK_START processAllActiveCustomers [target=message=Starting processing of all active customers pid=4176325]
+        const timestampMatch = line.match(/\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})\]/);
+        const eventMatch = line.match(/Task event: (\w+) ([\w-]+)/);
+        const metadataMatch = line.match(/\[([^\]]+)\]$/);
+        
+        if (!timestampMatch || !eventMatch) {
+            return null;
+        }
+        
+        const timestamp = timestampMatch[1];
+        const eventType = eventMatch[1];
+        const taskName = eventMatch[2];
+        
+        // Parse metadata from the bracketed section
+        const metadata = {};
+        if (metadataMatch) {
+            const metadataStr = metadataMatch[1];
+            const pairs = metadataStr.split(' ');
+            
+            for (const pair of pairs) {
+                const [key, ...valueParts] = pair.split('=');
+                if (key && valueParts.length > 0) {
+                    metadata[key] = valueParts.join('=');
+                }
+            }
+        }
+        
+        return {
+            timestamp,
+            eventType,
+            taskName,
+            target: metadata.target || metadata.child_task || null,
+            pid: metadata.pid || null,
+            metadata,
+            source: 'structured.log'
+        };
+    }
+
+    /**
+     * Analyze task execution status and history for each task
+     */
+    analyzeTaskExecution(events) {
+        const taskExecutionData = {};
+        const taskSessions = new Map();
+        const now = new Date();
+
+        // Initialize execution data for all registered tasks
+        Object.keys(this.taskRegistry.tasks || {}).forEach(taskName => {
+            taskExecutionData[taskName] = {
+                hasExecutionData: false,
+                isRunning: false,
+                lastStatus: null,
+                lastRun: null,
+                lastRunFormatted: null,
+                timeSinceLastRun: null,
+                timeSinceLastRunMinutes: null,
+                lastInitiated: null,
+                lastInitiatedFormatted: null,
+                timeSinceLastInitiated: null,
+                timeSinceLastInitiatedFormatted: null,
+                lastDuration: null,
+                lastDurationFormatted: null,
+                averageDuration: null,
+                averageDurationFormatted: null,
+                totalRuns: 0,
+                successfulRuns: 0,
+                failedRuns: 0,
+                successRate: '0.0'
+            };
+        });
+
+        // Group events by task sessions (taskName + pid)
+        events.forEach(event => {
+            const sessionKey = `${event.taskName}_${event.pid}`;
+            
+            if (!taskSessions.has(sessionKey)) {
+                taskSessions.set(sessionKey, {
+                    taskName: event.taskName,
+                    pid: event.pid,
+                    events: []
+                });
+            }
+            
+            taskSessions.get(sessionKey).events.push(event);
+        });
+
+        // Analyze each session
+        taskSessions.forEach(session => {
+            const taskName = session.taskName;
+            
+            // Skip if task not in registry
+            if (!taskExecutionData[taskName]) {
+                return;
+            }
+
+            const startEvent = session.events.find(e => e.eventType === 'TASK_START');
+            const endEvent = session.events.find(e => e.eventType === 'TASK_END' || e.eventType === 'TASK_COMPLETE');
+            const errorEvent = session.events.find(e => e.eventType === 'TASK_ERROR');
+
+            if (startEvent) {
+                taskExecutionData[taskName].hasExecutionData = true;
+
+                // Check if task is currently running (has start but no end/error)
+                if (!endEvent && !errorEvent) {
+                    // Validate if the process is actually still alive
+                    const pidAlive = this.isProcessAlive(session.pid);
+                    
+                    if (pidAlive) {
+                        // Process is genuinely running
+                        taskExecutionData[taskName].isRunning = true;
+                        taskExecutionData[taskName].lastStatus = 'running';
+                        taskExecutionData[taskName].lastInitiated = startEvent.timestamp;
+                        taskExecutionData[taskName].lastInitiatedFormatted = new Date(startEvent.timestamp).toLocaleString();
+                        taskExecutionData[taskName].timeSinceLastInitiated = this.getTimeAgo(startEvent.timestamp);
+                        taskExecutionData[taskName].timeSinceLastInitiatedFormatted = this.getTimeAgo(startEvent.timestamp);
+                    } else {
+                        // Silent failure detected: TASK_START without TASK_END and dead PID
+                        // console.warn(`[StructuredEventsAnalyzer] Silent failure detected for ${taskName} (PID ${session.pid})`);
+                        
+                        taskExecutionData[taskName].isRunning = false;
+                        taskExecutionData[taskName].lastStatus = 'failed';
+                        taskExecutionData[taskName].lastRun = startEvent.timestamp;
+                        taskExecutionData[taskName].lastRunFormatted = new Date(startEvent.timestamp).toLocaleString();
+                        taskExecutionData[taskName].timeSinceLastRun = this.getTimeAgo(startEvent.timestamp);
+                        taskExecutionData[taskName].timeSinceLastRunMinutes = Math.floor((now - new Date(startEvent.timestamp)) / (1000 * 60));
+                        taskExecutionData[taskName].lastInitiated = startEvent.timestamp;
+                        taskExecutionData[taskName].lastInitiatedFormatted = new Date(startEvent.timestamp).toLocaleString();
+                        taskExecutionData[taskName].timeSinceLastInitiated = this.getTimeAgo(startEvent.timestamp);
+                        taskExecutionData[taskName].timeSinceLastInitiatedFormatted = this.getTimeAgo(startEvent.timestamp);
+                        taskExecutionData[taskName].lastDuration = null; // Unknown duration for silent failures
+                        taskExecutionData[taskName].lastDurationFormatted = 'Unknown (silent failure)';
+                        taskExecutionData[taskName].totalRuns += 1;
+                        taskExecutionData[taskName].failedRuns += 1;
+                        taskExecutionData[taskName].silentFailures = (taskExecutionData[taskName].silentFailures || 0) + 1;
+                        taskExecutionData[taskName].errorType = 'uncaught';
+                            taskExecutionData[taskName].errorDetails = `Process ${session.pid} terminated without logging TASK_END or TASK_ERROR`;
+                        }
+                } else {
+                    // Task completed
+                    const finalEvent = endEvent || errorEvent;
+                    const success = !!endEvent;
+                    const duration = new Date(finalEvent.timestamp) - new Date(startEvent.timestamp);
+
+                    taskExecutionData[taskName].isRunning = false;
+                    taskExecutionData[taskName].lastStatus = success ? 'success' : 'failed';
+                    taskExecutionData[taskName].lastRun = finalEvent.timestamp;
+                    taskExecutionData[taskName].lastRunFormatted = new Date(finalEvent.timestamp).toLocaleString();
+                    taskExecutionData[taskName].timeSinceLastRun = this.getTimeAgo(finalEvent.timestamp);
+                    taskExecutionData[taskName].timeSinceLastRunMinutes = Math.floor((now - new Date(finalEvent.timestamp)) / (1000 * 60));
+                    taskExecutionData[taskName].lastInitiated = startEvent.timestamp;
+                    taskExecutionData[taskName].lastInitiatedFormatted = new Date(startEvent.timestamp).toLocaleString();
+                    taskExecutionData[taskName].timeSinceLastInitiated = this.getTimeAgo(startEvent.timestamp);
+                    taskExecutionData[taskName].timeSinceLastInitiatedFormatted = this.getTimeAgo(startEvent.timestamp);
+                    taskExecutionData[taskName].lastDuration = duration;
+                    taskExecutionData[taskName].lastDurationFormatted = this.formatDuration(duration);
+                    taskExecutionData[taskName].totalRuns += 1;
+
+                    if (success) {
+                        taskExecutionData[taskName].successfulRuns += 1;
+                    } else {
+                        taskExecutionData[taskName].failedRuns += 1;
+                        
+                        // Determine error type for failed tasks
+                        if (errorEvent) {
+                            taskExecutionData[taskName].errorType = 'caught';
+                            // Extract error details from metadata if available
+                            if (errorEvent.metadata && typeof errorEvent.metadata === 'object') {
+                                taskExecutionData[taskName].errorDetails = errorEvent.metadata.message || errorEvent.metadata.error_message || 'Error details available in metadata';
+                            } else {
+                                taskExecutionData[taskName].errorDetails = 'Task reported error via TASK_ERROR event';
+                            }
+                        } else {
+                            // Task failed but no TASK_ERROR event - this is an uncaught failure
+                            taskExecutionData[taskName].errorType = 'uncaught';
+                            taskExecutionData[taskName].errorDetails = 'Task failed without reporting error details';
+                        }
+                    }
+                }
+            }
+        });
+
+        // Calculate success rates for all tasks (after all sessions processed)
+        Object.keys(taskExecutionData).forEach(taskName => {
+            const taskData = taskExecutionData[taskName];
+            if (taskData.totalRuns > 0) {
+                const rate = (taskData.successfulRuns / taskData.totalRuns) * 100;
+                taskData.successRate = rate.toFixed(1);
+            }
+        });
+
+        // Calculate average durations for tasks with multiple runs (separate success/failure averages)
+        Object.keys(taskExecutionData).forEach(taskName => {
+            const taskData = taskExecutionData[taskName];
+            if (taskData.totalRuns > 1) {
+                // Get completed sessions separated by success/failure
+                const successfulSessions = [];
+                const failedSessions = [];
+                
+                taskSessions.forEach(session => {
+                    if (session.taskName === taskName) {
+                        const startEvent = session.events.find(e => e.eventType === 'TASK_START');
+                        const endEvent = session.events.find(e => e.eventType === 'TASK_END' || e.eventType === 'TASK_COMPLETE');
+                        const errorEvent = session.events.find(e => e.eventType === 'TASK_ERROR');
+                        
+                        if (startEvent && (endEvent || errorEvent)) {
+                            const finalEvent = endEvent || errorEvent;
+                            const duration = new Date(finalEvent.timestamp) - new Date(startEvent.timestamp);
+                            const success = !!endEvent;
+                            
+                            if (success) {
+                                successfulSessions.push(duration);
+                            } else {
+                                failedSessions.push(duration);
+                            }
+                        }
+                    }
+                });
+
+                // Calculate average duration for successful runs
+                if (successfulSessions.length > 0) {
+                    const avgSuccessDuration = successfulSessions.reduce((sum, duration) => sum + duration, 0) / successfulSessions.length;
+                    taskData.averageSuccessDuration = avgSuccessDuration;
+                    taskData.averageSuccessDurationFormatted = this.formatDuration(avgSuccessDuration);
+                }
+
+                // Calculate average duration for failed runs
+                if (failedSessions.length > 0) {
+                    const avgFailureDuration = failedSessions.reduce((sum, duration) => sum + duration, 0) / failedSessions.length;
+                    taskData.averageFailureDuration = avgFailureDuration;
+                    taskData.averageFailureDurationFormatted = this.formatDuration(avgFailureDuration);
+                }
+
+                // Keep overall average for backward compatibility
+                const allCompletedSessions = [...successfulSessions, ...failedSessions];
+                if (allCompletedSessions.length > 0) {
+                    const avgDuration = allCompletedSessions.reduce((sum, duration) => sum + duration, 0) / allCompletedSessions.length;
+                    taskData.averageDuration = avgDuration;
+                    taskData.averageDurationFormatted = this.formatDuration(avgDuration);
+                }
+            } else if (taskData.lastDuration) {
+                // Single run - use last duration as average and set appropriate success/failure average
+                taskData.averageDuration = taskData.lastDuration;
+                taskData.averageDurationFormatted = taskData.lastDurationFormatted;
+                
+                if (taskData.lastStatus === 'success') {
+                    taskData.averageSuccessDuration = taskData.lastDuration;
+                    taskData.averageSuccessDurationFormatted = taskData.lastDurationFormatted;
+                } else if (taskData.lastStatus === 'failed') {
+                    taskData.averageFailureDuration = taskData.lastDuration;
+                    taskData.averageFailureDurationFormatted = taskData.lastDurationFormatted;
+                }
+            }
+        });
+
+        return taskExecutionData;
+    }
+
+    /**
+     * Analyze task execution times and performance
+     */
+    analyzeTaskPerformance(events) {
+        const taskSessions = new Map();
+        const performance = {
+            completedTasks: [],
+            averageExecutionTimes: {},
+            slowestTasks: [],
+            fastestTasks: [],
+            failureRates: {}
+        };
+
+        // Group events by task sessions
+        events.forEach(event => {
+            const sessionKey = `${event.taskName}_${event.target || 'global'}_${event.pid}`;
+            
+            if (!taskSessions.has(sessionKey)) {
+                taskSessions.set(sessionKey, {
+                    taskName: event.taskName,
+                    target: event.target,
+                    pid: event.pid,
+                    events: []
+                });
+            }
+            
+            taskSessions.get(sessionKey).events.push(event);
+        });
+
+        // Analyze each task session
+        taskSessions.forEach(session => {
+            const startEvent = session.events.find(e => e.eventType === 'TASK_START');
+            const endEvent = session.events.find(e => e.eventType === 'TASK_END' || e.eventType === 'TASK_COMPLETE');
+            const errorEvent = session.events.find(e => e.eventType === 'TASK_ERROR');
+
+            if (startEvent && (endEvent || errorEvent)) {
+                const finalEvent = endEvent || errorEvent;
+                const duration = new Date(finalEvent.timestamp) - new Date(startEvent.timestamp);
+                const success = !!endEvent;
+
+                const taskResult = {
+                    taskName: session.taskName,
+                    target: session.target,
+                    startTime: startEvent.timestamp,
+                    endTime: finalEvent.timestamp,
+                    duration: duration,
+                    durationFormatted: this.formatDuration(duration),
+                    success: success,
+                    status: success ? 'completed' : 'failed'
+                };
+
+                performance.completedTasks.push(taskResult);
+
+                // Update averages
+                if (!performance.averageExecutionTimes[session.taskName]) {
+                    performance.averageExecutionTimes[session.taskName] = {
+                        total: 0,
+                        count: 0,
+                        average: 0
+                    };
+                }
+                
+                const avg = performance.averageExecutionTimes[session.taskName];
+                avg.total += duration;
+                avg.count += 1;
+                avg.average = avg.total / avg.count;
+
+                // Update failure rates
+                if (!performance.failureRates[session.taskName]) {
+                    performance.failureRates[session.taskName] = {
+                        total: 0,
+                        failures: 0,
+                        rate: 0
+                    };
+                }
+                
+                const failureRate = performance.failureRates[session.taskName];
+                failureRate.total += 1;
+                if (!success) failureRate.failures += 1;
+                failureRate.rate = (failureRate.failures / failureRate.total) * 100;
+            }
+        });
+
+        // Sort for fastest/slowest
+        const sortedTasks = performance.completedTasks.sort((a, b) => b.duration - a.duration);
+        performance.slowestTasks = sortedTasks.slice(0, 10);
+        performance.fastestTasks = sortedTasks.slice(-10).reverse();
+
+        return performance;
+    }
+
+    /**
+     * Analyze real-time progress of running tasks
+     */
+    analyzeRealTimeProgress(events) {
+        const now = new Date();
+        const recentEvents = events.filter(event => 
+            (now - new Date(event.timestamp)) < 24 * 60 * 60 * 1000 // Last 24 hours
+        );
+
+        const runningTasks = new Map();
+        const recentActivity = [];
+
+        recentEvents.forEach(event => {
+            const sessionKey = `${event.taskName}_${event.target || 'global'}_${event.pid}`;
+
+            if (event.eventType === 'TASK_START') {
+                runningTasks.set(sessionKey, {
+                    taskName: event.taskName,
+                    target: event.target,
+                    startTime: event.timestamp,
+                    status: 'running',
+                    progress: []
+                });
+            } else if (event.eventType === 'TASK_END' || event.eventType === 'TASK_COMPLETE' || event.eventType === 'TASK_ERROR') {
+                if (runningTasks.has(sessionKey)) {
+                    const task = runningTasks.get(sessionKey);
+                    task.endTime = event.timestamp;
+                    task.status = (event.eventType === 'TASK_END' || event.eventType === 'TASK_COMPLETE') ? 'completed' : 'failed';
+                    task.duration = new Date(event.timestamp) - new Date(task.startTime);
+                    runningTasks.delete(sessionKey);
+                }
+            } else if (event.eventType === 'PROGRESS') {
+                if (runningTasks.has(sessionKey)) {
+                    runningTasks.get(sessionKey).progress.push({
+                        timestamp: event.timestamp,
+                        metadata: event.metadata
+                    });
+                }
+            }
+
+            // Add to recent activity
+            recentActivity.push({
+                timestamp: event.timestamp,
+                eventType: event.eventType,
+                taskName: event.taskName,
+                target: event.target,
+                timeAgo: this.getTimeAgo(event.timestamp)
+            });
+        });
+
+        return {
+            runningTasks: Array.from(runningTasks.values()),
+            recentActivity: recentActivity.slice(-50).reverse() // Last 50 events, newest first
+        };
+    }
+
+    /**
+     * Analyze customer processing status
+     */
+    analyzeCustomerProcessing(events) {
+        const customerEvents = events.filter(event => 
+            event.target && event.target !== 'global' && 
+            (event.eventType.includes('CUSTOMER') || event.taskName.includes('Customer'))
+        );
+
+        const customerStatus = new Map();
+
+        customerEvents.forEach(event => {
+            const customerId = event.target;
+            
+            if (!customerStatus.has(customerId)) {
+                customerStatus.set(customerId, {
+                    customerId: customerId,
+                    tasks: [],
+                    status: 'unknown',
+                    lastActivity: null,
+                    totalTasks: 0,
+                    completedTasks: 0,
+                    failedTasks: 0
+                });
+            }
+
+            const customer = customerStatus.get(customerId);
+            customer.lastActivity = event.timestamp;
+
+            if (event.eventType === 'TASK_START') {
+                customer.totalTasks += 1;
+                customer.status = 'processing';
+            } else if (event.eventType === 'TASK_END' || event.eventType === 'TASK_COMPLETE') {
+                customer.completedTasks += 1;
+                customer.status = 'completed';
+            } else if (event.eventType === 'TASK_ERROR') {
+                customer.failedTasks += 1;
+                customer.status = 'failed';
+            }
+
+            customer.tasks.push({
+                taskName: event.taskName,
+                eventType: event.eventType,
+                timestamp: event.timestamp
+            });
+        });
+
+        return Array.from(customerStatus.values())
+            .sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
+    }
+
+    /**
+     * Generate comprehensive dashboard data
+     */
+    generateDashboardData() {
+        const events = this.loadEvents();
+        
+        if (events.length === 0) {
+            return {
+                summary: {
+                    totalEvents: 0,
+                    timeRange: null,
+                    message: 'No structured events found'
+                },
+                performance: {},
+                realTime: { runningTasks: [], recentActivity: [] },
+                customers: []
+            };
+        }
+
+        const executionData = this.analyzeTaskExecution(events);
+        const performance = this.analyzeTaskPerformance(events);
+        const realTimeProgress = this.analyzeRealTimeProgress(events);
+        const customers = this.analyzeCustomerProcessing(events);
+
+        return {
+            analysis: {
+                totalTasks: Object.keys(this.taskRegistry.tasks || {}).length,
+                tasksWithExecutionData: Object.values(executionData).filter(task => task.hasExecutionData).length,
+                currentlyRunning: Object.values(executionData).filter(task => task.isRunning).length,
+                neverRun: Object.values(executionData).filter(task => !task.hasExecutionData && !task.isRunning).length,
+                recentlySuccessful: Object.values(executionData).filter(task => 
+                    task.lastStatus === 'success' && task.timeSinceLastRunMinutes < 60
+                ).length,
+                recentlyFailed: Object.values(executionData).filter(task => 
+                    task.lastStatus === 'failed' && task.timeSinceLastRunMinutes < 60
+                ).length
+            },
+            executionData,
+            performance: this.analyzeTaskPerformance(events),
+            realTimeProgress: this.analyzeRealTimeProgress(events),
+            diagnostics: this.diagnostics
+        };
+    }
+
+    /**
+     * Helper methods
+     */
+    formatDuration(milliseconds) {
+        const seconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+
+    getTimeAgo(timestamp) {
+        const now = new Date();
+        const eventTime = new Date(timestamp);
+        const diffMs = now - eventTime;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffDays > 0) return `${diffDays}d ago`;
+        if (diffHours > 0) return `${diffHours}h ago`;
+        if (diffMins > 0) return `${diffMins}m ago`;
+        return 'just now';
+    }
+}
+
+module.exports = StructuredEventsAnalyzer;

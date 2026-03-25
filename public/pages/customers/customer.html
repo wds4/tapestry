@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Status - Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/customer.css">
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <script src="./components/header/header.js"></script>
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="customer-container">            
+            <!-- Loading state -->
+            <div id="loadingState" class="loading">
+                <div class="loader"></div>
+                <p>Checking authentication status...</p>
+            </div>
+            
+            <!-- Not logged in state -->
+            <div id="notLoggedInState" class="status-card warning" style="display: none;">
+                <h2>🔐 Authentication Required</h2>
+                <p>You need to be logged in to view your customer status.</p>
+                <div class="action-buttons">
+                    <a href="/sign-in.html" class="btn btn-primary">Sign In</a>
+                </div>
+            </div>
+            
+            <!-- Not a customer state -->
+            <div id="notCustomerState" class="status-card info" style="display: none;">
+                <h2>👋 Welcome!</h2>
+                <div id="userInfo" class="user-info"></div>
+                <p>You're not currently a customer. Would you like to sign up for our services?</p>
+                <div class="action-buttons">
+                    <a href="/sign-up.html" class="btn btn-primary">Sign Up</a>
+                    <a href="/about.html" class="btn btn-secondary">About</a>
+                </div>
+            </div>
+            
+            <!-- Customer state -->
+            <div id="customerState" class="status-card success" style="display: none;">
+                <h2>✅ Customer Status</h2>
+                <div id="customerUserInfo" class="user-info"></div>
+                <div id="customerDetails" class="customer-details"></div>
+                
+                <!-- New Comprehensive NIP-85 Status Panel -->
+                <div id="newNip85Panel" class="nip85-panel">
+                    <h3>🎆 Trusted Assertions</h3>
+                    
+                    <div id="newNip85Loading" class="nip85-loading">
+                        <div class="loader"></div>
+                        <p>Checking your NIP-85 status...</p>
+                    </div>
+                    
+                    <!-- Complete NIP-85 Status -->
+                    <div id="newNip85Complete" class="status-card success" style="display: none;">
+                        <h4>✅ NIP-85 Setup Complete</h4>
+                        <p>Excellent! Your Kind 10040 event is published and properly configured with your Brainstorm relay keys. Your personalized trust scores are available to the wider Nostr world.</p>
+                        <div id="newNip85CompleteDetails" class="nip85-details"></div>
+                        
+                        <!-- Raw Kind 10040 Note Viewer (hidden by default) -->
+                        <div id="completeRawNoteSection" class="raw-note-section" style="display: none;">
+                            <div class="raw-note-header">
+                                <button id="toggleCompleteRawNoteBtn" class="toggle-btn">
+                                    <span class="toggle-icon">👁️</span>
+                                    <span class="toggle-text">Show Raw Kind 10040 Event</span>
+                                </button>
+                            </div>
+                            <div id="completeRawNoteContent" class="raw-note-content" style="display: none;">
+                                <pre id="completeRawNoteData" class="raw-note-data"></pre>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button id="updateKind10040EventBtn2" class="btn btn-primary">📝 Update Kind 10040 Event</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Relay Key Mismatch Status -->
+                    <div id="newNip85Mismatch" class="status-card warning" style="display: none;">
+                        <h4>⚠️ Relay Key Mismatch Detected</h4>
+                        <p>You have an existing Kind 10040 event, but it references a different relay than your current Brainstorm setup. To make your personalized trust scores available to the wider Nostr world, you should update your Kind 10040 event.</p>
+                        <div id="newNip85MismatchDetails" class="nip85-details"></div>
+                        <div class="button-group">
+                            <button id="updateKind10040EventBtn1" class="btn btn-primary">🔄 Update Kind 10040 Event</button>
+                        </div>
+                        
+                        <!-- Raw Kind 10040 Note Viewer (hidden by default) -->
+                        <div id="mismatchRawNoteSection" class="raw-note-section" style="display: none;">
+                            <div class="raw-note-header">
+                                <button id="toggleMismatchRawNoteBtn" class="toggle-btn">
+                                    <span class="toggle-icon">👁️</span>
+                                    <span class="toggle-text">Show Raw Kind 10040 Event</span>
+                                </button>
+                            </div>
+                            <div id="mismatchRawNoteContent" class="raw-note-content" style="display: none;">
+                                <pre id="mismatchRawNoteData" class="raw-note-data"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Missing Kind 10040 Status -->
+                    <div id="newNip85Missing" class="status-card info" style="display: none;">
+                        <h4>📝 Enable Trusted Attestations (NIP-85)</h4>
+                        <p>To get the most out of Brainstorm and make your personalized trust scores available to the wider Nostr world, we recommend publishing your Kind 10040 event.</p>
+                        <div id="newNip85MissingDetails" class="nip85-details"></div>
+                        <div class="button-group">
+                            <button id="publishKind10040EventBtn" class="btn btn-primary">📝 Publish Kind 10040 Event</button>
+                        </div>
+                    </div>
+                    
+                    <!-- NIP-85 Error Status -->
+                    <div id="newNip85Error" class="status-card error" style="display: none;">
+                        <h4>⚠️ Unable to Check NIP-85 Status</h4>
+                        <p id="newNip85ErrorMessage">We couldn't check your NIP-85 status right now. Please try refreshing the page.</p>
+                        <div class="button-group">
+                            <button id="retryNip85StatusBtn" class="btn btn-secondary">🔄 Retry</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Kind 30382 Event Status Panel -->
+                <div class="status-panel">
+                    <h3>📊 Kind 30382 Event Status</h3>
+                    <p>Information about your personalized trust score events published to the Nostr network.</p>
+                    
+                    <div id="kind30382Loading" class="loading-state" style="display: none;">
+                        <div class="loader"></div>
+                        <p>Loading Kind 30382 event information...</p>
+                    </div>
+                    
+                    <!-- Kind 30382 Event Info -->
+                    <div id="kind30382Info" class="status-card info" style="display: none;">
+                        <h4>📈 Trust Score Events</h4>
+                        <div id="kind30382Details" class="nip85-details"></div>
+                        
+                        <!-- Raw Kind 30382 Event Viewer (hidden by default) -->
+                        <div id="kind30382RawNoteSection" class="raw-note-section" style="display: none;">
+                            <div class="raw-note-header">
+                                <button id="toggleKind30382RawNoteBtn" class="toggle-btn">
+                                    <span class="toggle-icon">👁️</span>
+                                    <span class="toggle-text">Show Raw Latest Kind 30382 Event</span>
+                                </button>
+                            </div>
+                            <div id="kind30382RawNoteContent" class="raw-note-content" style="display: none;">
+                                <pre id="kind30382RawNoteData" class="raw-note-data"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- No Kind 30382 Events -->
+                    <div id="kind30382NoEvents" class="status-card warning" style="display: none;">
+                        <h4>⚠️ No Trust Score Events Found</h4>
+                        <p>No Kind 30382 events have been published for your account yet. These events contain your personalized trust scores and are automatically generated by the Brainstorm system.</p>
+                        <div class="info-note">
+                            <p><strong>Note:</strong> Kind 30382 events are created automatically when your trust metrics are calculated. If you're a new customer, these may take some time to appear.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Kind 30382 Error State -->
+                    <div id="kind30382Error" class="status-card error" style="display: none;">
+                        <h4>❌ Error Loading Kind 30382 Events</h4>
+                        <p id="kind30382ErrorMessage">Unable to load Kind 30382 event information.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Error state -->
+            <div id="errorState" class="status-card warning" style="display: none;">
+                <h2>⚠️ Error</h2>
+                <p id="errorMessage">An error occurred while checking your status.</p>
+                <div class="action-buttons">
+                    <button onclick="checkCustomerStatus()" class="btn btn-primary">Try Again</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the footer component -->
+    <div id="footerContainer"></div>
+    
+    <script>
+        // Get base URL for API calls
+        const baseUrl = window.location.origin;
+        
+        // State management
+        const states = {
+            loading: document.getElementById('loadingState'),
+            notLoggedIn: document.getElementById('notLoggedInState'),
+            notCustomer: document.getElementById('notCustomerState'),
+            customer: document.getElementById('customerState'),
+            error: document.getElementById('errorState')
+        };
+        
+        function showState(stateName) {
+            // Hide all states
+            Object.values(states).forEach(state => {
+                if (state) state.style.display = 'none';
+            });
+            
+            // Show the requested state
+            if (states[stateName]) {
+                states[stateName].style.display = 'block';
+            }
+        }
+        
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            if (errorMessage) {
+                errorMessage.textContent = message;
+            }
+            showState('error');
+        }
+        
+        function formatPubkey(pubkey) {
+            if (!pubkey) return 'N/A';
+            return `${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 8)}`;
+        }
+        
+        function createUserInfoHTML(userData) {
+            return `
+                <h3>User Information</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Display Name:</span>
+                    <span class="detail-value">${userData.display_name || 'Not set'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Username:</span>
+                    <span class="detail-value">${userData.name || 'Not set'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Public Key:</span>
+                    <span class="detail-value pubkey">${formatPubkey(userData.pubkey)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">About:</span>
+                    <span class="detail-value">${userData.about ? userData.about.substring(0, 100) + (userData.about.length > 100 ? '...' : '') : 'Not set'}</span>
+                </div>
+            `;
+        }
+        
+        function createCustomerDetailsHTML(customerData) {
+            return `
+                <h3>Customer Details</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Customer ID:</span>
+                    <span class="detail-value">${customerData.id !== undefined && customerData.id !== null ? customerData.id : 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Brainstorm Display Name:</span>
+                    <span class="detail-value">${customerData.display_name || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value" style="color: #28a745; font-weight: 600;">${customerData.status || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Directory:</span>
+                    <span class="detail-value">${customerData.directory || 'N/A'}</span>
+                </div>
+                ${customerData.comments ? `
+                <div class="detail-row">
+                    <span class="detail-label">Comments:</span>
+                    <span class="detail-value">${customerData.comments}</span>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        async function checkAuthenticationStatus() {
+            try {
+                // Check authentication status with the server
+                const response = await fetch('/api/auth/status');
+                if (!response.ok) {
+                    console.log('Failed to check auth status:', response.status);
+                    return null;
+                }
+                
+                const data = await response.json();
+                console.log('Auth status response:', data);
+                
+                if (data && data.authenticated && data.pubkey) {
+                    console.log('User is authenticated with pubkey:', data.pubkey);
+                    return data.pubkey;
+                } else {
+                    console.log('User is not authenticated');
+                    return null;
+                }
+            } catch (error) {
+                console.log('Error checking authentication status:', error);
+                return null;
+            }
+        }
+        
+        async function fetchUserData(pubkey) {
+            try {
+                const response = await fetch(`${baseUrl}/api/get-user-data?pubkey=${encodeURIComponent(pubkey)}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                throw error;
+            }
+        }
+        
+        async function fetchCustomersData() {
+            try {
+                const response = await fetch('/api/get-customers');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Customers data:', data);
+                return data;
+            } catch (error) {
+                console.error('Error fetching customers data:', error);
+                throw error;
+            }
+        }
+        
+
+        
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString();
+        }
+        
+
+        
+
+        
+        function findCustomerByPubkey(customersData, pubkey) {
+            if (!customersData.success || !customersData.customers) {
+                return null;
+            }
+            
+            return customersData.customers.find(customer => customer.pubkey === pubkey);
+        }
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+        // New NIP-85 Status Panel Functions
+        async function loadNewNip85Status(pubkey) {
+            const loadingDiv = document.getElementById('newNip85Loading');
+            const completeDiv = document.getElementById('newNip85Complete');
+            const mismatchDiv = document.getElementById('newNip85Mismatch');
+            const missingDiv = document.getElementById('newNip85Missing');
+            const errorDiv = document.getElementById('newNip85Error');
+            
+            // Show loading state
+            loadingDiv.style.display = 'block';
+            completeDiv.style.display = 'none';
+            mismatchDiv.style.display = 'none';
+            missingDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/get-nip85-status?pubkey=${pubkey}&returnRawEvents=true`);
+                const data = await response.json();
+                loadingDiv.style.display = 'none';
+                
+                if (data.success) {
+                    const nip85Data = data.data;
+                    
+                    if (nip85Data.overall.isComplete) {
+                        // Complete setup - Kind 10040 exists and relay keys match
+                        showNewNip85Complete(nip85Data);
+                    } else if (nip85Data.kind10040.exists && !nip85Data.kind10040.matches) {
+                        // Relay key mismatch - Kind 10040 exists but relay keys don't match
+                        showNewNip85Mismatch(nip85Data);
+                    } else if (!nip85Data.kind10040.exists) {
+                        // Missing Kind 10040 - needs to be created
+                        showNewNip85Missing(nip85Data);
+                    } else {
+                        // Other scenarios (missing relay keys, etc.)
+                        showNewNip85Error('Unable to determine NIP-85 status. Please check your setup.');
+                    }
+                    
+                    // Load Kind 30382 panel data
+                    loadKind30382Status(nip85Data);
+                } else {
+                    showNewNip85Error(data.message || 'Unknown error occurred');
+                }
+                
+            } catch (error) {
+                console.error('Error loading NIP-85 status:', error);
+                loadingDiv.style.display = 'none';
+                showNewNip85Error(`Network error: ${error.message}`);
+            }
+        }
+        
+        function showNewNip85Complete(nip85Data) {
+            const completeDiv = document.getElementById('newNip85Complete');
+            const detailsDiv = document.getElementById('newNip85CompleteDetails');
+            const rawNoteSection = document.getElementById('completeRawNoteSection');
+            
+            completeDiv.style.display = 'block';
+            
+            // Create status details
+            const detailsHTML = createNewNip85StatusDetails(nip85Data);
+            detailsDiv.innerHTML = detailsHTML;
+            
+            // Show raw event toggle section if event data is available
+            if (nip85Data.kind10040.event) {
+                rawNoteSection.style.display = 'block';
+                setupCompleteRawNoteToggle(nip85Data.kind10040.event);
+            }
+        }
+        
+        function showNewNip85Mismatch(nip85Data) {
+            const mismatchDiv = document.getElementById('newNip85Mismatch');
+            const detailsDiv = document.getElementById('newNip85MismatchDetails');
+            const rawNoteSection = document.getElementById('mismatchRawNoteSection');
+            
+            mismatchDiv.style.display = 'block';
+            
+            // Create status details with mismatch information
+            const detailsHTML = createNewNip85StatusDetails(nip85Data, true);
+            detailsDiv.innerHTML = detailsHTML;
+            
+            // Show raw event toggle section if event data is available
+            if (nip85Data.kind10040.event) {
+                rawNoteSection.style.display = 'block';
+                setupMismatchRawNoteToggle(nip85Data.kind10040.event);
+            }
+        }
+        
+        function showNewNip85Missing(status) {
+            const missingDiv = document.getElementById('newNip85Missing');
+            const detailsDiv = document.getElementById('newNip85MissingDetails');
+            
+            missingDiv.style.display = 'block';
+            
+            // Create status details
+            const detailsHTML = createNewNip85StatusDetails(status);
+            detailsDiv.innerHTML = detailsHTML;
+        }
+        
+        function showNewNip85Error(message) {
+            const errorDiv = document.getElementById('newNip85Error');
+            const messageP = document.getElementById('newNip85ErrorMessage');
+            
+            errorDiv.style.display = 'block';
+            messageP.textContent = message;
+        }
+        
+        function createNewNip85StatusDetails(nip85Data, showMismatch = false) {
+            let html = '<div class="nip85-status-grid">';
+            
+            // Customer Relay Key Status
+            const hasRelayKeys = nip85Data.customer?.relayKeys?.pubkey;
+            html += `
+                <div class="status-item">
+                    <span class="status-label">Customer Relay Pubkey:</span>
+                    <span class="status-value ${hasRelayKeys ? 'success' : 'error'}">
+                        ${hasRelayKeys ? '✅ Available' : '❌ Missing'}
+                        ${hasRelayKeys ? `<br><small>${formatPubkey(nip85Data.customer.relayKeys.pubkey)}</small>` : ''}
+                    </span>
+                </div>
+            `;
+            
+            // Kind 10040 Event Status
+            html += `
+                <div class="status-item">
+                    <span class="status-label">Kind 10040 Event:</span>
+                    <span class="status-value ${nip85Data.kind10040.exists ? 'success' : 'warning'}">
+                        ${nip85Data.kind10040.exists ? '✅ Published' : '📝 Not Published'}
+                    </span>
+                </div>
+            `;
+            
+            // Relay Key Match Status (only if both exist)
+            if (nip85Data.kind10040.exists && hasRelayKeys) {
+                html += `
+                    <div class="status-item">
+                        <span class="status-label">Relay Key Match:</span>
+                        <span class="status-value ${nip85Data.kind10040.matches ? 'success' : 'warning'}">
+                            ${nip85Data.kind10040.matches ? '✅ Match' : '⚠️ Mismatch'}
+                        </span>
+                    </div>
+                `;
+                
+                // Show mismatch details if requested
+                if (showMismatch && !nip85Data.kind10040.matches) {
+                    html += `
+                        <div class="status-item mismatch-details">
+                            <span class="status-label">Event Relay Pubkey:</span>
+                            <span class="status-value warning">
+                                ${nip85Data.kind10040.relayPubkey ? formatPubkey(nip85Data.kind10040.relayPubkey) : 'Not found'}
+                            </span>
+                        </div>
+                        <div class="status-item mismatch-details">
+                            <span class="status-label">Current Relay Key:</span>
+                            <span class="status-value success">
+                                ${formatPubkey(nip85Data.customer.relayKeys.pubkey)}
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Kind 30382 Event Count
+            html += `
+                <div class="status-item">
+                    <span class="status-label">Kind 30382 Events:</span>
+                    <span class="status-value info">
+                        📊 ${nip85Data.kind30382?.count || 0} published
+                    </span>
+                </div>
+            `;
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function setupCompleteRawNoteToggle(eventData) {
+            const toggleBtn = document.getElementById('toggleCompleteRawNoteBtn');
+            const rawNoteData = document.getElementById('completeRawNoteData');
+            
+            if (toggleBtn && rawNoteData) {
+                // Set event data
+                rawNoteData.textContent = JSON.stringify(eventData, null, 2);
+                
+                // Remove existing event listeners
+                const newToggleBtn = toggleBtn.cloneNode(true);
+                toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+                
+                // Add new event listener
+                newToggleBtn.addEventListener('click', function() {
+                    toggleCompleteRawNote();
+                });
+            }
+        }
+        
+        function setupMismatchRawNoteToggle(eventData) {
+            const toggleBtn = document.getElementById('toggleMismatchRawNoteBtn');
+            const rawNoteData = document.getElementById('mismatchRawNoteData');
+            
+            if (toggleBtn && rawNoteData) {
+                // Set event data
+                rawNoteData.textContent = JSON.stringify(eventData, null, 2);
+                
+                // Remove existing event listeners
+                const newToggleBtn = toggleBtn.cloneNode(true);
+                toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+                
+                // Add new event listener
+                newToggleBtn.addEventListener('click', function() {
+                    toggleMismatchRawNote();
+                });
+            }
+        }
+        
+        function toggleCompleteRawNote() {
+            const rawNoteContent = document.getElementById('completeRawNoteContent');
+            const toggleBtn = document.getElementById('toggleCompleteRawNoteBtn');
+            const toggleText = toggleBtn.querySelector('.toggle-text');
+            const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+            
+            const isCurrentlyVisible = rawNoteContent.style.display !== 'none';
+            
+            if (isCurrentlyVisible) {
+                // Hide the raw note
+                rawNoteContent.style.display = 'none';
+                toggleText.textContent = 'Show Raw Kind 10040 Event';
+                toggleIcon.textContent = '👁️';
+                toggleBtn.classList.remove('expanded');
+            } else {
+                // Show the raw note
+                rawNoteContent.style.display = 'block';
+                toggleText.textContent = 'Hide Raw Kind 10040 Event';
+                toggleIcon.textContent = '🙈';
+                toggleBtn.classList.add('expanded');
+            }
+        }
+        
+        function toggleMismatchRawNote() {
+            const rawNoteContent = document.getElementById('mismatchRawNoteContent');
+            const toggleBtn = document.getElementById('toggleMismatchRawNoteBtn');
+            const toggleText = toggleBtn.querySelector('.toggle-text');
+            const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+            
+            const isCurrentlyVisible = rawNoteContent.style.display !== 'none';
+            
+            if (isCurrentlyVisible) {
+                // Hide the raw note
+                rawNoteContent.style.display = 'none';
+                toggleText.textContent = 'Show Raw Kind 10040 Event';
+                toggleIcon.textContent = '👁️';
+                toggleBtn.classList.remove('expanded');
+            } else {
+                // Show the raw note
+                rawNoteContent.style.display = 'block';
+                toggleText.textContent = 'Hide Raw Kind 10040 Event';
+                toggleIcon.textContent = '🙈';
+                toggleBtn.classList.add('expanded');
+            }
+        }
+        
+        // Kind 30382 Panel Functions
+        function loadKind30382Status(nip85Data) {
+            const loadingDiv = document.getElementById('kind30382Loading');
+            const infoDiv = document.getElementById('kind30382Info');
+            const noEventsDiv = document.getElementById('kind30382NoEvents');
+            const errorDiv = document.getElementById('kind30382Error');
+            
+            // Hide loading state
+            loadingDiv.style.display = 'none';
+            
+            if (nip85Data.kind30382 && nip85Data.kind30382.count > 0) {
+                // Show Kind 30382 info
+                showKind30382Info(nip85Data.kind30382);
+                infoDiv.style.display = 'block';
+                noEventsDiv.style.display = 'none';
+                errorDiv.style.display = 'none';
+            } else {
+                // Show no events state
+                infoDiv.style.display = 'none';
+                noEventsDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        function showKind30382Info(kind30382Data) {
+            const detailsDiv = document.getElementById('kind30382Details');
+            const rawNoteSection = document.getElementById('kind30382RawNoteSection');
+            
+            // Create status details HTML
+            const detailsHTML = createKind30382StatusDetails(kind30382Data);
+            detailsDiv.innerHTML = detailsHTML;
+            
+            // Show raw event toggle section if latest event is available
+            if (kind30382Data.latestEvent) {
+                rawNoteSection.style.display = 'block';
+                setupKind30382RawNoteToggle(kind30382Data.latestEvent);
+            } else {
+                rawNoteSection.style.display = 'none';
+            }
+        }
+        
+        function createKind30382StatusDetails(kind30382Data) {
+            let html = '<div class="status-details">';
+            
+            // Event Count
+            html += `
+                <div class="status-item">
+                    <span class="status-label">Total Events:</span>
+                    <span class="status-value info">
+                        📊 ${kind30382Data.count.toLocaleString()} events
+                    </span>
+                </div>
+            `;
+            
+            // Latest Event Timestamp
+            if (kind30382Data.latestTimestamp) {
+                const date = new Date(kind30382Data.latestTimestamp * 1000);
+                const timeAgo = getTimeAgo(kind30382Data.latestTimestamp);
+                html += `
+                    <div class="status-item">
+                        <span class="status-label">Latest Event:</span>
+                        <span class="status-value info">
+                            🕒 ${timeAgo} (${date.toLocaleString()})
+                        </span>
+                    </div>
+                `;
+            }
+            
+            // Author Match Status
+            if (kind30382Data.authorMatchDetails) {
+                const matchDetails = kind30382Data.authorMatchDetails;
+                const matchIcon = matchDetails.matches ? '✅' : '❌';
+                const matchClass = matchDetails.matches ? 'success' : 'error';
+                
+                html += `
+                    <div class="status-item">
+                        <span class="status-label">Author Match:</span>
+                        <span class="status-value ${matchClass}">
+                            ${matchIcon} ${matchDetails.message}
+                        </span>
+                    </div>
+                `;
+                
+                // Show relay key comparison if there's a mismatch
+                if (!matchDetails.matches) {
+                    html += `
+                        <div class="status-item">
+                            <span class="status-label">Customer Relay Pubkey:</span>
+                            <span class="status-value info">
+                                ${formatPubkey(matchDetails.customerRelayPubkey)}
+                            </span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Event Author Key:</span>
+                            <span class="status-value warning">
+                                ${formatPubkey(matchDetails.eventRelayPubkey)}
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function setupKind30382RawNoteToggle(eventData) {
+            const toggleBtn = document.getElementById('toggleKind30382RawNoteBtn');
+            const rawNoteData = document.getElementById('kind30382RawNoteData');
+            
+            if (toggleBtn && rawNoteData) {
+                // Set event data
+                rawNoteData.textContent = JSON.stringify(eventData, null, 2);
+                
+                // Remove existing event listeners
+                const newToggleBtn = toggleBtn.cloneNode(true);
+                toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+                
+                // Add new event listener
+                newToggleBtn.addEventListener('click', function() {
+                    toggleKind30382RawNote();
+                });
+            }
+        }
+        
+        function toggleKind30382RawNote() {
+            const rawNoteContent = document.getElementById('kind30382RawNoteContent');
+            const toggleBtn = document.getElementById('toggleKind30382RawNoteBtn');
+            const toggleText = toggleBtn.querySelector('.toggle-text');
+            const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+            
+            const isCurrentlyVisible = rawNoteContent.style.display !== 'none';
+            
+            if (isCurrentlyVisible) {
+                // Hide the raw note
+                rawNoteContent.style.display = 'none';
+                toggleText.textContent = 'Show Raw Latest Kind 30382 Event';
+                toggleIcon.textContent = '👁️';
+                toggleBtn.classList.remove('expanded');
+            } else {
+                // Show the raw note
+                rawNoteContent.style.display = 'block';
+                toggleText.textContent = 'Hide Raw Latest Kind 30382 Event';
+                toggleIcon.textContent = '🙈';
+                toggleBtn.classList.add('expanded');
+            }
+        }
+        
+        function getTimeAgo(timestamp) {
+            const now = Math.floor(Date.now() / 1000);
+            const diff = now - timestamp;
+            
+            if (diff < 60) {
+                return `${diff} seconds ago`;
+            } else if (diff < 3600) {
+                const minutes = Math.floor(diff / 60);
+                return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+            } else if (diff < 86400) {
+                const hours = Math.floor(diff / 3600);
+                return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+            } else {
+                const days = Math.floor(diff / 86400);
+                return `${days} day${days !== 1 ? 's' : ''} ago`;
+            }
+        }
+        
+        function setupNewNip85EventHandlers(pubkey) {
+            // Retry button
+            const retryBtn = document.getElementById('retryNip85StatusBtn');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', function() {
+                    loadNewNip85Status(pubkey);
+                });
+            }
+            
+            // Publish Kind 10040 Event button
+            const publishBtn = document.getElementById('publishKind10040EventBtn');
+            if (publishBtn) {
+                publishBtn.addEventListener('click', function() {
+                    handleNewNip85EventAction(pubkey, 'create');
+                });
+            }
+            
+            // Update Kind 10040 Event button
+            const updateBtn1 = document.getElementById('updateKind10040EventBtn1');
+            if (updateBtn1) {
+                updateBtn1.addEventListener('click', function() {
+                    handleNewNip85EventAction(pubkey, 'update');
+                });
+            }
+
+            // Update Kind 10040 Event button
+            const updateBtn2 = document.getElementById('updateKind10040EventBtn2');
+            if (updateBtn2) {
+                updateBtn2.addEventListener('click', function() {
+                    handleNewNip85EventAction(pubkey, 'update');
+                });
+            }
+        }
+        
+        /**
+         * Handle Kind 10040 publishing with NIP-07 signing
+         * @param {string} customerPubkey - The customer's pubkey
+         * @param {string} mode - 'create' for new event, 'update' for relay key mismatch
+         */
+        async function handleCreateAndPublishKind10040(customerPubkey, mode = 'create') {
+            // Determine which buttons to use based on mode
+            let publishBtn;
+            if (mode === 'update') {
+                // Try both update buttons (there are two in the customer.html)
+                publishBtn = document.getElementById('updateKind10040EventBtn1') || document.getElementById('updateKind10040EventBtn2');
+            } else {
+                publishBtn = document.getElementById('publishKind10040EventBtn');
+            }
+            
+            if (!publishBtn) {
+                console.error('Could not find publish button for mode:', mode);
+                showNewNip85Error('Could not find the appropriate button. Please refresh the page.');
+                return;
+            }
+            
+            // Show loading state
+            const originalText = publishBtn.textContent;
+            publishBtn.disabled = true;
+            publishBtn.textContent = mode === 'update' ? '🔄 Updating event...' : '🔄 Creating event...';
+            
+            try {
+                // Step 1: Check for NIP-07 extension
+                if (!window.nostr) {
+                    alert('❌ Nostr browser extension (NIP-07) is required to sign events. Please install a Nostr extension like Alby, nos2x, or Flamingo.');
+                    publishBtn.disabled = false;
+                    publishBtn.textContent = originalText;
+                    return;
+                }
+                
+                // Step 2: Create unsigned Kind 10040 event
+                publishBtn.textContent = '📝 Creating unsigned event...';
+                
+                const createResponse = await fetch('/api/create-unsigned-kind10040', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pubkey: customerPubkey
+                    })
+                });
+                
+                const createResult = await createResponse.json();
+                
+                if (!createResult.success) {
+                    throw new Error(createResult.message || 'Failed to create unsigned event');
+                }
+                
+                const unsignedEvent = createResult.data.unsignedEvent;
+                console.log('Unsigned event created:', unsignedEvent);
+                
+                // Step 3: Sign the event using NIP-07
+                publishBtn.textContent = '✍️ Please sign in your Nostr extension...';
+                
+                let signedEvent;
+                try {
+                    signedEvent = await window.nostr.signEvent(unsignedEvent);
+                    console.log('Event signed successfully:', signedEvent);
+                } catch (signingError) {
+                    console.error('Signing error:', signingError);
+                    throw new Error(`Failed to sign event: ${signingError.message || 'User cancelled or extension error'}`);
+                }
+                
+                // Step 4: Publish the signed event
+                publishBtn.textContent = '📡 Publishing signed event...';
+                
+                const publishResponse = await fetch('/api/publish-signed-kind10040', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        signedEvent: signedEvent,
+                        pubkey: customerPubkey
+                    })
+                });
+                
+                console.log('About to publish result')
+                const publishResult = await publishResponse.json();
+                console.log('Published result', publishResult)
+                
+                if (publishResult.success) {
+                    console.log('Kind 10040 event published successfully')
+                    
+                    // Success - show success message and reload NIP-85 status
+                    publishBtn.textContent = '✅ Success!';
+                    
+                    // Show success alert
+                    alert(`✅ Kind 10040 Event ${mode === 'update' ? 'Updated' : 'Published'}!\n\nEvent ID: ${signedEvent.id}\n\nTrusted Assertions has been ${mode === 'update' ? 'updated' : 'enabled'} for your account! 👏`);
+                    
+                    // Reload NIP-85 status to show updated state
+                    setTimeout(() => {
+                        loadNewNip85Status(customerPubkey);
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(publishResult.message || 'Failed to publish signed event');
+                }
+                
+            } catch (error) {
+                console.error('Error in Kind 10040 flow:', error);
+                
+                let errorMessage = error.message;
+                if (errorMessage.includes('User rejected')) {
+                    errorMessage = 'You cancelled the signing process. Please try again when ready.';
+                } else if (errorMessage.includes('extension')) {
+                    errorMessage = 'Nostr extension error. Please check your extension and try again.';
+                }
+                
+                alert(`❌ ${errorMessage}`);
+                showNewNip85Error(errorMessage);
+                
+                // Restore button state
+                publishBtn.disabled = false;
+                publishBtn.textContent = originalText;
+            }
+        }
+        
+        async function handleNewNip85EventAction(pubkey, mode) {
+            try {
+                // Check authentication first
+                const authPubkey = await checkAuthenticationStatus();
+                if (!authPubkey) {
+                    showNewNip85Error('Authentication required: Please sign in with your Nostr key to publish events.');
+                    return;
+                }
+                
+                // Use the handleCreateAndPublishKind10040 function
+                await handleCreateAndPublishKind10040(pubkey, mode);
+                
+            } catch (error) {
+                console.error('Error handling NIP-85 event action:', error);
+                showNewNip85Error(`Error ${mode === 'create' ? 'creating' : 'updating'} event: ${error.message}`);
+            }
+        }
+        
+        async function checkCustomerStatus() {
+            try {
+                showState('loading');
+                
+                // Step 1: Check authentication status
+                const pubkey = await checkAuthenticationStatus();
+                
+                if (!pubkey) {
+                    showState('notLoggedIn');
+                    return;
+                }
+                
+                // Step 2: Fetch user data
+                const userData = await fetchUserData(pubkey);
+                
+                // Step 3: Fetch customers data
+                const customersData = await fetchCustomersData();
+                
+                // Step 4: Check if user is a customer
+                const customerInfo = findCustomerByPubkey(customersData, pubkey);
+                
+                if (customerInfo) {
+                    // User is a customer - show customer status
+                    const customerUserInfo = document.getElementById('customerUserInfo');
+                    const customerDetails = document.getElementById('customerDetails');
+                    
+                    if (customerUserInfo) {
+                        customerUserInfo.innerHTML = createUserInfoHTML(userData);
+                    }
+                    
+                    if (customerDetails) {
+                        customerDetails.innerHTML = createCustomerDetailsHTML(customerInfo);
+                    }
+                    
+                    showState('customer');
+                    
+                    // Load new comprehensive NIP-85 status
+                    loadNewNip85Status(pubkey);
+                    setupNewNip85EventHandlers(pubkey);
+                    
+
+
+                } else {
+                    // User is not a customer - show signup prompt
+                    const userInfo = document.getElementById('userInfo');
+                    if (userInfo) {
+                        userInfo.innerHTML = createUserInfoHTML(userData);
+                    }
+                    
+                    showState('notCustomer');
+                }
+                
+            } catch (error) {
+                console.error('Error checking customer status:', error);
+                showError(`Failed to check customer status: ${error.message}`);
+            }
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait a bit for Nostr extension to load
+            setTimeout(checkCustomerStatus, 500);
+        });
+        
+        // Also check when window loads (fallback)
+        window.addEventListener('load', function() {
+            // Only run if we're still in loading state
+            if (states.loading && states.loading.style.display !== 'none') {
+                setTimeout(checkCustomerStatus, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

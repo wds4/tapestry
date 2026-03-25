@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/css/profile.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <script src="./components/footer/footer.js"></script>
+    <style>
+        .sg-link { color: #3b54b7; text-decoration: underline; font-weight: 500; cursor: pointer; }
+        .sg-link:hover { color: #5a2bb6; text-decoration: underline dotted; }
+        
+        /* Observer Selector Styles */
+        .observer-selector-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .observer-selector {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .observer-label {
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .observer-dropdown {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: white;
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+        
+        .observer-dropdown:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+        
+        .observer-dropdown:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .observer-selector {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .observer-dropdown {
+                width: 100%;
+                min-width: unset;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+    
+    <!-- Observer Selector -->
+    <div class="observer-selector-container">
+        <div class="observer-selector">
+            <label for="observerSelect" class="observer-label">Observer:</label>
+            <select id="observerSelect" class="observer-dropdown">
+                <option value="owner">Global (Owner)</option>
+                <!-- Options will be populated dynamically -->
+            </select>
+        </div>
+    </div>
+    
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <div id="loadingIndicator" class="loading"></div>
+            
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            
+            <div id="profileContainer" class="profile-container" style="display: none;">
+                <div class="profile-sidebar">
+                    <img id="profilePicture" class="profile-picture" src="/img/default-avatar.png" alt="Profile Picture">
+                    <div class="profile-info">
+                        <h2 id="displayName">Loading...</h2>
+                        <p id="username">@username</p>
+                        <p id="nip05" style="display: none;"></p>
+                        <div class="pubkey-display" id="npubDisplay"></div>
+                        <div class="pubkey-display" id="pubkeyDisplay"></div>
+                    </div>
+                    <div class="profile-links" id="profileLinks">
+                        <!-- Links will be added here -->
+                        <a id="profileNjumpLink" href="#" target="_blank">njump.me</a>
+                    </div>
+                </div>
+                
+                <div class="profile-content">
+                    <div class="profile-stats">
+                        <div class="stat-box">
+                            <h3>🍇-Verified Followers</h3>
+                            <p id="verifiedFollowerCountValue1">-</p>
+                        </div>
+                        <div class="stat-box">
+                            <h3>Hops</h3>
+                            <p id="hopsValue">-</p>
+                        </div>
+                        <div class="stat-box">
+                            <h3>🍇-Influence</h3>
+                            <p id="influenceValue">-</p>
+                            <p class="stat-link"><a href="#" id="grapeRankReviewLink">Review Calculations</a></p>
+                        </div>
+                    </div>
+
+                    <div class="profile-about" id="aboutSection">
+                        <h3>About</h3>
+                        <p id="aboutText">No information available</p>
+                    </div>
+                    
+                    <div class="profile-metadata">
+                        <h3>Profile Metadata</h3>
+                        <table class="metadata-table" id="metadataTable">
+                            <tbody>
+                                <!-- Metadata will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Trust Scores Panel -->
+                    <div class="profile-section trust-scores-section">
+                        <h3 class="section-title">Trust Scores</h3>
+                        <div class="trust-scores-table-wrapper">
+                            <table class="trust-scores-table styled-table">
+                                <tbody>
+                                    <tr>
+                                        <th colspan="2" style="text-align:left;color:#7a4cff;background:#f6f3ff;border-radius:4px 4px 0 0;">GrapeRank</th>
+                                    </tr>
+                                    <tr>
+                                        <th>Influence</th>
+                                        <td id="trustInfluenceValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Average</th>
+                                        <td id="trustAverageValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Confidence</th>
+                                        <td id="trustConfidenceValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Input</th>
+                                        <td id="trustInputValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th colspan="2" style="text-align:left;color:#7a4cff;background:#f6f3ff;">Other Metrics</th>
+                                    </tr>
+                                    <tr>
+                                        <th>Hops</th>
+                                        <td id="trustHopsValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>PageRank</th>
+                                        <td id="trustPersonalizedPageRankValue">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- End Trust Scores Panel -->
+                    
+                    <div class="profile-section social-connections-section">
+                        <h3 class="section-title">Social Graph Overview</h3>
+                        <div class="connections-table-wrapper">
+                            <table class="connections-table styled-table">
+                                <tbody>
+                                    <tr>
+                                        <th>Following</th>
+                                        <td id="followingCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Followers</th>
+                                        <td id="followerCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>🍇-Verified Followers</th>
+                                        <td id="verifiedFollowerCountValue2">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Frens</th>
+                                        <td id="frenCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Groupies</th>
+                                        <td id="groupieCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Idols</th>
+                                        <td id="idolCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Mutual Frens</th>
+                                        <td id="mutualFrenCountValue"><a href="#" class="mutual-link" data-type="mutualFrens">-</a></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Mutual Groupies</th>
+                                        <td id="mutualGroupieCountValue"><a href="#" class="mutual-link" data-type="mutualGroupies">-</a></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Mutual Idols</th>
+                                        <td id="mutualIdolCountValue"><a href="#" class="mutual-link" data-type="mutualIdols">-</a></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Mutual Followers</th>
+                                        <td id="mutualFollowerCountValue"><a href="#" class="mutual-link" data-type="mutualFollowers">-</a></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Mutual Follows</th>
+                                        <td id="mutualFollowCountValue"><a href="#" class="mutual-link" data-type="mutualFollows">-</a></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Recommended Follows (to Owner by this profile)</th>
+                                        <td id="recommendationsToOwnerCountValue">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Recommended Follows (to this profile by Owner)</th>
+                                        <td id="recommendationsFromOwnerCountValue">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="connections-table-info">
+                            <span class="connections-hint">
+                                <li>Frens: Two users who follow each other are Frens.</li>
+                                <li>Groupies: A user who follows Alice but she doesn't follow back.</li>
+                                <li>Idols: A user whom Alice follows but who doesn't follow Alice back.</li>
+                                <li>Mutual: in common between you (this Brainstorm owner) and this profile.</li>
+                                <li>🍇-Verified: 🍇-Influence &gt; 0.05.</li>
+                                <li>Recommendations: Recommend your Frens!</li>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="profile-section nip56-section">
+                        <h3 class="section-title"><span style="color:#7a4cff;">🚩 Mutes (nip-51) and Reports (nip-56)</span></h3>
+                        <div class="mute-report-stats">
+                            <span><b>Muted by this user:</b> <span id="mutingCountValue">-</span></span>
+                            <span style="margin-left: 24px;"><b>Muted this user:</b> <span id="muterCountValue">-</span></span>
+                        </div>
+                        <div class="nip56-table-wrapper">
+                            <table class="nip56-table styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Report Type</th>
+                                        <th>🍇-Verified Reports Weight</th>
+                                        <th>🍇-Verified Report Count</th>
+                                        <th>Total Report Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="nip56ReportsTableBody">
+                                    <!-- Rows will be populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="nip56-table-info">
+                            <span class="nip56-hint">
+                                <li>Total Report Count includes all reports and may include bots!</li>
+                                <li>🍇-Verified Report Count excludes reports from profiles with GrapeRank score below a cutoff (🍇-Rank > 0.1).</li>
+                                <li>🍇-Verified Reports Weight is a sum over all reports, weighted by the reporter's Influence score (which should be low or zero in the case of bots).</li>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="network-visualization">
+                        <h3>Network Proximity Visualization</h3>
+                        <p><a href="network-visualization-lite.html?pubkey={{pubkey}}" id="networkLink" target="_blank">Open Network Visualization in New Tab</a> (Lite version to prevent server overload)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+    
+    <script>
+        // Get pubkey from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const pubkey = urlParams.get('pubkey');
+        
+        if (!pubkey) {
+            showError('No pubkey specified. Please provide a valid pubkey parameter.');
+        } else {
+            // Configure GrapeRank Review link
+            document.getElementById('grapeRankReviewLink').href = `graperank-calculations-review.html?pubkey=${pubkey}`;
+            document.getElementById('profileNjumpLink').href = `https://njump.me/p/${pubkey}`;
+            
+            // Base URL for API calls
+            const baseUrl = '/api';
+            
+            // Observer selector functionality
+            let currentObserverPubkey = 'owner'; // Default to global (owner)
+            const observerSelect = document.getElementById('observerSelect');
+            
+            // Initialize observer selector
+            initializeObserverSelector();
+            
+            // Load data
+            // deprecating this line -- this function is called below; here it causes an error with a broken api call
+            // loadProfileDataSequentially(pubkey, baseUrl);
+        }
+        
+        // Get DOM elements
+        const profileContainer = document.getElementById('profileContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        
+        // Determine the base URL for API calls
+        const baseUrl = window.location.pathname.includes('/control/') ? '/control' : '';
+        
+        // Update network visualization link with the pubkey
+        const networkLink = document.getElementById('networkLink');
+        if (networkLink && pubkey) {
+            networkLink.href = `network-visualization-lite.html?pubkey=${encodeURIComponent(pubkey)}`;
+        }
+        
+        // Load profile data if pubkey is provided
+        if (pubkey) {
+            // Hide error message
+            errorMessage.style.display = 'none';
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'flex';
+            profileContainer.style.display = 'none';
+            
+            // Set the pubkey in the display
+            pubkeyDisplay.textContent = pubkey;
+
+            // Sequential API calls to prevent concurrent request issues
+            loadProfileDataSequentially(pubkey, baseUrl);
+        } else {
+            // Show error message if no pubkey is provided
+            showError('No pubkey provided');
+        }
+        
+        // Initialize observer selector with customer options
+        function initializeObserverSelector() {
+            fetch('/api/get-customers')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.customers) {
+                        // Clear existing options except the default
+                        const defaultOption = observerSelect.querySelector('option[value="owner"]');
+                        observerSelect.innerHTML = '';
+                        observerSelect.appendChild(defaultOption);
+                        
+                        // Add customer options
+                        data.customers.forEach(customer => {
+                            if (customer.status === 'active' && customer.pubkey) {
+                                const option = document.createElement('option');
+                                option.value = customer.pubkey;
+                                option.textContent = customer.name || customer.pubkey.substring(0, 16) + '...';
+                                observerSelect.appendChild(option);
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading customers for observer selector:', error);
+                });
+            
+            // Add change event listener
+            observerSelect.addEventListener('change', function() {
+                currentObserverPubkey = this.value;
+                console.log('Observer changed to:', currentObserverPubkey);
+                
+                // Reload profile data with new observer
+                if (pubkey) {
+                    // Show loading indicator
+                    loadingIndicator.style.display = 'flex';
+                    profileContainer.style.display = 'none';
+                    
+                    // Reload data
+                    loadProfileDataSequentially(pubkey, baseUrl);
+                }
+            });
+        }
+        
+        // Function to load profile data sequentially
+        function loadProfileDataSequentially(pubkey, baseUrl) {
+            // Step 1: Load Neo4j data
+            let getUserDataUrl = `${baseUrl}/api/get-user-data?pubkey=${encodeURIComponent(pubkey)}`;
+            if (currentObserverPubkey) {
+                getUserDataUrl += `&observerPubkey=${encodeURIComponent(currentObserverPubkey)}`;
+            }
+            fetch(getUserDataUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayNeo4jData(data.data);
+                        updateProfileStats(data.data);
+                        
+                        // Step 2: Only after Neo4j data is loaded, fetch kind 0 data
+                        return fetch(`${baseUrl}/api/get-kind0?pubkey=${encodeURIComponent(pubkey)}`);
+                    } else {
+                        throw new Error(data.message || 'Failed to fetch Neo4j data');
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayKind0Data(data.data);
+                        
+                        // Show profile container
+                        loadingIndicator.style.display = 'none';
+                        profileContainer.style.display = 'flex';
+                        
+                        // Add click handlers for mutual links
+                        setupMutualLinks(pubkey, data.data.ownerPubkey);
+                    } else {
+                        // If we can't get kind 0 data, still show what we have
+                        console.warn('Could not fetch kind 0 data:', data.message);
+                        
+                        // Show profile container
+                        loadingIndicator.style.display = 'none';
+                        profileContainer.style.display = 'flex';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching profile data:', error);
+                    showError(`Error fetching profile data: ${error.message}`);
+                });
+        }
+        
+        // Function to display Neo4j data
+        function displayNeo4jData(data) {
+            // Influence, hops, confidence, pagerank
+            // if (data.personalizedPageRank !== null && data.personalizedPageRank !== undefined) {
+            //     pageRankValue.textContent = parseFloat(data.personalizedPageRank).toFixed(4);
+            // }
+            if (data.hops !== null && data.hops !== undefined) {
+                hopsValue.textContent = data.hops;
+            }
+            if (data.influence !== null && data.influence !== undefined) {
+                influenceValue.textContent = parseFloat(data.influence).toFixed(4);
+            }
+            // Mutual counts
+            if (data.mutualFrenCount !== undefined) document.querySelector('#mutualFrenCountValue a').textContent = data.mutualFrenCount;
+            if (data.mutualGroupieCount !== undefined) document.querySelector('#mutualGroupieCountValue a').textContent = data.mutualGroupieCount;
+            if (data.mutualIdolCount !== undefined) document.querySelector('#mutualIdolCountValue a').textContent = data.mutualIdolCount;
+            if (data.mutualFollowerCount !== undefined) document.querySelector('#mutualFollowerCountValue a').textContent = data.mutualFollowerCount;
+            if (data.mutualFollowCount !== undefined) document.querySelector('#mutualFollowCountValue a').textContent = data.mutualFollowCount;
+            // Social graph panel
+            document.getElementById('followingCountValue').textContent = data.followingCount ?? 0;
+            document.getElementById('followerCountValue').textContent = data.followerCount ?? 0;
+            document.getElementById('verifiedFollowerCountValue1').textContent = data.verifiedFollowerCount ?? 0;
+            document.getElementById('verifiedFollowerCountValue2').textContent = data.verifiedFollowerCount ?? 0;
+            document.getElementById('frenCountValue').textContent = data.frenCount ?? 0;
+            document.getElementById('groupieCountValue').textContent = data.groupieCount ?? 0;
+            document.getElementById('idolCountValue').textContent = data.idolCount ?? 0;
+            document.getElementById('mutualFrenCountValue').textContent = data.mutualFrenCount ?? 0;
+            document.getElementById('mutualGroupieCountValue').textContent = data.mutualGroupieCount ?? 0;
+            document.getElementById('mutualIdolCountValue').textContent = data.mutualIdolCount ?? 0;
+            document.getElementById('mutualFollowerCountValue').textContent = data.mutualFollowerCount ?? 0;
+            document.getElementById('mutualFollowCountValue').textContent = data.mutualFollowCount ?? 0;
+            document.getElementById('recommendationsToOwnerCountValue').textContent = data.recommendationsToOwnerCount ?? 0;
+            document.getElementById('recommendationsFromOwnerCountValue').textContent = data.recommendationsFromOwnerCount ?? 0;
+            // Muting/muters
+            document.getElementById('mutingCountValue').textContent = data.mutingCount ?? 0;
+            document.getElementById('muterCountValue').textContent = data.muterCount ?? 0;
+            // NIP-56 Reports Table
+            const nip56 = data.nip56;
+            const nip56ReportsTable = document.getElementById('nip56ReportsTableBody');
+            if (nip56 && nip56ReportsTable) {
+                nip56ReportsTable.innerHTML = '';
+                // Add totals row
+                if (nip56.totals) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td><b>Total</b></td>
+                        <td>${nip56.totals.nip56TotalGrapeRankScore !== null ? nip56.totals.nip56TotalGrapeRankScore.toFixed(3) : '—'}</td>
+                        <td>${nip56.totals.nip56TotalVerifiedReportCount ?? '—'}</td>
+                        <td>${nip56.totals.nip56TotalReportCount ?? '—'}</td>`;
+                    nip56ReportsTable.appendChild(tr);
+                }
+                // Add row for each report type
+                if (nip56.byReportType) {
+                    for (const [type, vals] of Object.entries(nip56.byReportType)) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>${type}</td>
+                            <td>${vals.grapeRankScore !== null ? vals.grapeRankScore.toFixed(3) : '—'}</td>
+                            <td>${vals.verifiedReportCount ?? '—'}</td>
+                            <td>${vals.reportCount ?? '—'}</td>`;
+                        nip56ReportsTable.appendChild(tr);
+                    }
+                }
+                document.querySelector('.nip56-section').style.display = '';
+            } else {
+                document.querySelector('.nip56-section').style.display = 'none';
+            }
+            // Set npub from API if present
+            if (data.npub) {
+                document.getElementById('npubDisplay').textContent = data.npub;
+            }
+            
+            // Add dynamic linking for Social Graph Overview panel values
+            const observer = data.ownerPubkey;
+            const observee = data.pubkey;
+            const socialLinks = [
+                { id: 'followingCountValue', type: 'follows' },
+                { id: 'followerCountValue', type: 'followers' },
+                { id: 'verifiedFollowerCountValue2', type: 'verifiedFollowers' },
+                { id: 'frenCountValue', type: 'frens' },
+                { id: 'groupieCountValue', type: 'groupies' },
+                { id: 'idolCountValue', type: 'idols' },
+                { id: 'mutualFrenCountValue', type: 'mutualFrens' },
+                { id: 'mutualGroupieCountValue', type: 'mutualGroupies' },
+                { id: 'mutualIdolCountValue', type: 'mutualIdols' },
+                { id: 'mutualFollowerCountValue', type: 'mutualFollowers' },
+                { id: 'mutualFollowCountValue', type: 'mutualFollows' },
+                { id: 'recommendationsToOwnerCountValue', type: 'recommendedToObserver' },
+                { id: 'recommendationsFromOwnerCountValue', type: 'recommendedToObservee' }
+            ];
+            socialLinks.forEach(({id, type}) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    const value = el.textContent;
+                    const url = `/grapevine-analysis.html?observer=${encodeURIComponent(observer)}&observee=${encodeURIComponent(observee)}&interactionType=${encodeURIComponent(type)}`;
+                    el.innerHTML = `<a href="${url}" class="sg-link" title="View ${type} list">${value}</a>`;
+                }
+            });
+            
+            // Trust Scores Panel population
+            document.getElementById('trustInfluenceValue').textContent = (data.influence !== undefined && data.influence !== null) ? parseFloat(data.influence).toFixed(4) : '-';
+            document.getElementById('trustAverageValue').textContent = (data.average !== undefined && data.average !== null) ? parseFloat(data.average).toFixed(4) : '-';
+            document.getElementById('trustConfidenceValue').textContent = (data.confidence !== undefined && data.confidence !== null) ? parseFloat(data.confidence).toFixed(4) : '-';
+            document.getElementById('trustInputValue').textContent = (data.input !== undefined && data.input !== null) ? parseFloat(data.input).toFixed(4) : '-';
+            
+            // Trust Hops and Personalized PageRank
+            document.getElementById('trustHopsValue').textContent = (data.hops !== undefined && data.hops !== null) ? data.hops : '-';
+            document.getElementById('trustPersonalizedPageRankValue').textContent = (data.personalizedPageRank !== undefined && data.personalizedPageRank !== null) ? parseFloat(data.personalizedPageRank).toFixed(4) : '-';
+        }
+        
+        // Function to display kind 0 data
+        function displayKind0Data(data) {
+            try {
+                // Parse the content as JSON
+                const profileContent = JSON.parse(data.content);
+                
+                // Update display name
+                if (profileContent.name) {
+                    displayName.textContent = profileContent.name;
+                    document.title = `${profileContent.name} - Nostr Profile`;
+                }
+                
+                // Update username/nickname
+                if (profileContent.display_name || profileContent.displayName) {
+                    const nick = profileContent.display_name || profileContent.displayName;
+                    username.textContent = nick;
+                } else if (profileContent.name) {
+                    username.textContent = `@${profileContent.name.toLowerCase().replace(/\s+/g, '_')}`;
+                }
+                
+                // Update profile picture
+                if (profileContent.picture) {
+                    profilePicture.src = profileContent.picture;
+                    profilePicture.onerror = () => {
+                        profilePicture.src = '/img/default-avatar.png';
+                    };
+                }
+                
+                // Update NIP-05 identifier
+                if (profileContent.nip05) {
+                    nip05.textContent = `✓ ${profileContent.nip05}`;
+                    nip05.style.display = 'block';
+                }
+                
+                // Update about text
+                if (profileContent.about) {
+                    aboutText.textContent = profileContent.about;
+                    
+                    // Convert URLs to links
+                    aboutText.innerHTML = aboutText.innerHTML.replace(
+                        /(https?:\/\/[^\s]+)/g, 
+                        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                    );
+                }
+                
+                // Add website link if available
+                // deprecating; include this only in metadata table
+                /*
+                if (profileContent.website) {
+                    const websiteUrl = new URL(profileContent.website);
+                    addProfileLink('Website', websiteUrl.href);
+                }
+                */
+                
+                // Add social media links
+                const socialPlatforms = {
+                    twitter: { label: 'Twitter', url: 'https://twitter.com/' },
+                    github: { label: 'GitHub', url: 'https://github.com/' },
+                    instagram: { label: 'Instagram', url: 'https://instagram.com/' },
+                    linkedin: { label: 'LinkedIn', url: 'https://linkedin.com/in/' }
+                };
+                
+                for (const [platform, info] of Object.entries(socialPlatforms)) {
+                    if (profileContent[platform]) {
+                        const username = profileContent[platform].replace('@', '');
+                        addProfileLink(info.label, `${info.url}${username}`);
+                    }
+                }
+                
+                // Add all metadata to the table
+                metadataTable.innerHTML = '';
+                for (const [key, value] of Object.entries(profileContent)) {
+                    if (value && typeof value === 'string') {
+                        addMetadataRow(key, value);
+                    }
+                }
+                
+                // Add event metadata
+                if (data.created_at) {
+                    const date = new Date(data.created_at * 1000);
+                    addMetadataRow('Profile Updated', date.toLocaleString());
+                }
+                if (data.id) {
+                    // Add as clickable link to njump.me
+                    addMetadataRow('Event ID', `<a href="https://njump.me/${data.id}" target="_blank" rel="noopener">${data.id}</a>`);
+                }
+            } catch (error) {
+                console.error('Error parsing profile content:', error);
+            }
+        }
+        
+        // Function to update profile stats
+        function updateProfileStats(userData) {
+            if (userData.influence !== null && userData.influence !== undefined) {
+                influenceValue.textContent = parseFloat(userData.influence).toFixed(4);
+            }
+            if (userData.hops !== null && userData.hops !== undefined) {
+                hopsValue.textContent = userData.hops;
+            }
+            /*
+            // removing this block from the page
+            if (userData.confidence !== null && userData.confidence !== undefined) {
+                confidenceValue.textContent = parseFloat(userData.confidence).toFixed(4);
+            }
+            if (userData.personalizedPageRank !== null && userData.personalizedPageRank !== undefined) {
+                pageRankValue.textContent = parseFloat(userData.personalizedPageRank).toFixed(4);
+            }
+            */
+        }
+        
+        // Function to add profile link
+        function addProfileLink(label, url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = label;
+            profileLinks.appendChild(link);
+        }
+        
+        // Function to add metadata row
+        function addMetadataRow(key, value) {
+            const row = document.createElement('tr');
+            
+            const keyCell = document.createElement('td');
+            keyCell.textContent = key.replace(/([A-Z])/g, ' $1')
+                .replace(/_/g, ' ')
+                .replace(/^./, str => str.toUpperCase());
+            
+            const valueCell = document.createElement('td');
+            
+            // Special handling for website field to make it a clickable link
+            if (key.toLowerCase() === 'website' && typeof value === 'string' && value.trim() !== '') {
+                let url = value.trim();
+                // Add protocol if missing
+                if (!/^https?:\/\//i.test(url)) {
+                    url = 'https://' + url;
+                }
+                const a = document.createElement('a');
+                a.href = url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.textContent = value;
+                valueCell.appendChild(a);
+            } else if (typeof value === 'string' && value.startsWith('<a ')) {
+                valueCell.innerHTML = value;
+            } else {
+                valueCell.textContent = value;
+            }
+            
+            row.appendChild(keyCell);
+            row.appendChild(valueCell);
+            document.getElementById('metadataTable').appendChild(row);
+        }
+        
+        // Function to show error message
+        function showError(message) {
+            loadingIndicator.style.display = 'none';
+            profileContainer.style.display = 'none';
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = message;
+        }
+        
+        // Function to setup mutual links
+        function setupMutualLinks(pubkey, ownerPubkey) {
+            document.querySelectorAll('.mutual-link').forEach(link => {
+                const type = link.getAttribute('data-type');
+                link.onclick = function(e) {
+                    e.preventDefault();
+                    // observer = owner, observee = this profile
+                    let observer = ownerPubkey;
+                    let observee = pubkey;
+                    // For mutualIdols, mutualFollowers, mutualFollows, observer/observee order may not matter, but keep it consistent
+                    window.open(`grapevine-analysis.html?observer=${encodeURIComponent(observer)}&observee=${encodeURIComponent(observee)}&interactionType=${encodeURIComponent(type)}`, '_blank');
+                };
+            });
+        }
+    </script>
+</body>
+</html>

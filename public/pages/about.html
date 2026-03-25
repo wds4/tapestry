@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/about.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <script src="./components/footer/footer.js"></script>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <!-- Main content wrapper -->
+    <div class="page-content">
+        <div class="container">
+            <h1 style="text-align: center;">Brainstorm: a personalized Webs of Trust Nostr Relay</h1>
+            <div class="section">
+                Brainstorm calculates <i>personalized trust scores</i> based on input from your trusted nostr community.
+                Personalized scores are calculated for the <i>owner</i> of the Brainstorm instance. 
+                Brainstorm also supports personalized trust score calculation for up to 10 friends (or customers, once that feature is implemented) of the owner (or more based on system specs).
+            </div>
+            <div class="section">
+                Algorithms and scores include:
+                <li>GrapeRank</li>
+                <li>PageRank</li>
+                <li>Hops</li>
+                <li>verified Follower Count</li>
+                <li>and more!</li>
+            </div>
+            <div class="section">
+                GrapeRank data sources:
+                <li>Follows</li>
+                <li>Mutes</li>
+                <li>Reports</li>
+                <li>... with more to come</li>
+            </div>
+            <div class="section">
+                These scores are made available to nostr clients using a variety of methods, most notably 
+                <a href="/about-trusted-assertions.html" target="_blank">NIP-85: Trusted Assertions</a>.
+            </div>
+            <div class="section">
+                Why personalized trust scores?
+                <li>screen out spam</li>
+                <li>stratify content</li>
+                <li>content discovery</li>
+            </div>
+            <div class="section">
+                Brainstorm is currently in alpha and is not yet available for widespread use.
+            </div>
+            <div class="section">
+                <a href="/sign-in.html" target="_blank">sign in</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+</body>
+</html>

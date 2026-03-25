@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Explorer - Brainstorm</title>
+    <script src="./components/header/header.js"></script>
+    <script src="./components/footer/footer.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        .explorer-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .explorer-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .explorer-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .filter-select, .search-input {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .search-input {
+            min-width: 200px;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .view-toggle button {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .view-toggle button:hover:not(.active) {
+            background: #f8f9fa;
+        }
+
+        /* Tree View Styles */
+        .tree-view {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tree-node {
+            margin-bottom: 0.5rem;
+        }
+
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .tree-item:hover {
+            background: #f8f9fa;
+        }
+
+        .tree-expand {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .tree-expand.empty {
+            visibility: hidden;
+        }
+
+        .tree-children {
+            margin-left: 2rem;
+            border-left: 2px solid #e9ecef;
+            padding-left: 1rem;
+        }
+
+        .tree-children.collapsed {
+            display: none;
+        }
+
+        /* Compact Tree View Enhancements */
+        .tree-task-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .tree-status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .tree-status-indicator.running {
+            background: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .tree-status-indicator.success {
+            background: #28a745;
+        }
+
+        .tree-status-indicator.failed {
+            background: #dc3545;
+        }
+
+        .tree-status-indicator.never-run {
+            background: #6c757d;
+        }
+
+        .tree-task-name {
+            font-weight: 500;
+            color: #333;
+            flex: 1;
+        }
+
+        .tree-task-name.running {
+            color: #856404;
+        }
+
+        .tree-detail-toggle {
+            background: none;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.7rem;
+            color: #6c757d;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .tree-detail-toggle:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+        }
+
+        .tree-detail-toggle.expanded {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .tree-task-details {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+            display: none;
+        }
+
+        .tree-task-details.expanded {
+            display: block;
+        }
+
+        .tree-task-details .task-description {
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .tree-task-details .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .tree-task-details .task-execution {
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        /* Card View Styles */
+        .card-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .task-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
+            transition: box-shadow 0.2s;
+        }
+
+        .task-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Table View Styles */
+        .table-view {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .task-table th,
+        .task-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .task-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .task-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Task Info Styles */
+        .task-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .task-description {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .task-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-category {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .badge-structured {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .badge-no-structured {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .badge-orchestrator {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .badge-customer {
+            background: #e0f2f1;
+            color: #00695c;
+        }
+
+        .badge-owner {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        .badge-running {
+            background: #e3f2fd;
+            color: #1565c0;
+            animation: pulse 2s infinite;
+        }
+
+        .badge-success {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .badge-failed {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .badge-failed-uncaught {
+            background: #ff5722;
+            color: white;
+            font-weight: bold;
+            border: 1px solid #d84315;
+        }
+
+        .badge-failed-timeout {
+            background: #ff9800;
+            color: white;
+            font-weight: bold;
+            border: 1px solid #f57c00;
+            animation: pulse 2s infinite;
+        }
+
+        .badge-never-run {
+            background: #f5f5f5;
+            color: #757575;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Run Task Button Styles */
+        .task-actions {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .run-task-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .run-task-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        .run-task-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .run-task-btn.running {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .task-details-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .task-details-link:hover {
+            background: #5a6268;
+            color: white;
+            text-decoration: none;
+        }
+
+        .task-name-link {
+            color: #333;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .task-name-link:hover {
+            color: #007bff;
+            text-decoration: underline;
+        }
+
+        .table-details-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            text-decoration: none;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+
+        .table-details-link:hover {
+            background: #007bff;
+            border-color: #007bff;
+            text-decoration: none;
+        }
+
+        .customer-required-badge {
+            background: #17a2b8;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            margin-left: auto;
+        }
+
+        /* Customer Selector Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .modal-subtitle {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .customer-search {
+            margin-bottom: 1rem;
+        }
+
+        .customer-search input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .customer-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .customer-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .customer-item:last-child {
+            border-bottom: none;
+        }
+
+        .customer-item:hover {
+            background: #f8f9fa;
+        }
+
+        .customer-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+
+        .customer-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .customer-pubkey {
+            font-size: 0.8rem;
+            color: #666;
+            font-family: monospace;
+            margin-top: 0.25rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .modal-btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .modal-btn-primary:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .modal-btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #545b62;
+        }
+
+        /* Task Execution Output Modal */
+        .execution-modal {
+            max-width: 800px;
+            width: 95%;
+        }
+
+        .execution-output {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1rem 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+        }
+
+        .execution-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 4px;
+        }
+
+        .execution-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .execution-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .execution-status.running {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .task-relationships {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .task-execution {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .execution-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+
+        .execution-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .execution-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .execution-value {
+            color: #333;
+        }
+
+        .relationship-link {
+            color: #007bff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .relationship-link:hover {
+            text-decoration: underline;
+        }
+
+        .task-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .explorer-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .card-view {
+                grid-template-columns: 1fr;
+            }
+
+            .task-table {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <div class="page-content explorer-container">
+        <div class="explorer-header">
+            <h1>🔍 Task Explorer</h1>
+            <p>Comprehensive view of all Brainstorm tasks, their relationships, and implementation status</p>
+        </div>
+
+        <div id="loading" class="loading">
+            Loading task registry and analysis...
+        </div>
+
+        <div id="error-container" style="display: none;"></div>
+
+        <div id="explorer-content" style="display: none;">
+            <!-- Task Statistics -->
+            <div class="task-stats">
+                <div class="stat-item">
+                    <div id="total-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Total Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div id="structured-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Structured Logging</div>
+                </div>
+                <div class="stat-item">
+                    <div id="orchestrator-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Orchestrators</div>
+                </div>
+                <div class="stat-item">
+                    <div id="customer-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Customer Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div id="owner-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Owner Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div id="root-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Root Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div id="running-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Currently Running</div>
+                </div>
+                <div class="stat-item">
+                    <div id="execution-data-tasks" class="stat-value">-</div>
+                    <div class="stat-label">With Execution Data</div>
+                </div>
+                <div class="stat-item">
+                    <div id="never-run-tasks" class="stat-value">-</div>
+                    <div class="stat-label">Never Run</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="explorer-controls">
+                <div class="filter-group">
+                    <label for="category-filter">Category:</label>
+                    <select id="category-filter" class="filter-select">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="structured-filter">Structured Logging:</label>
+                    <select id="structured-filter" class="filter-select">
+                        <option value="">All Tasks</option>
+                        <option value="true">Implemented</option>
+                        <option value="false">Not Implemented</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="execution-filter">Execution Status:</label>
+                    <select id="execution-filter" class="filter-select">
+                        <option value="">All Tasks</option>
+                        <option value="running">Currently Running</option>
+                        <option value="success">Last Run: Success</option>
+                        <option value="failed">Last Run: Failed</option>
+                        <option value="never-run">Never Run</option>
+                        <option value="has-data">Has Execution Data</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="search-input">Search:</label>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search tasks...">
+                </div>
+
+                <div class="view-toggle">
+                    <button id="tree-view-btn" class="active">Tree View</button>
+                    <button id="card-view-btn">Card View</button>
+                    <button id="table-view-btn">Table View</button>
+                    <button id="log-view-btn">Log Data View</button>
+                </div>
+            </div>
+
+            <!-- Content Views -->
+            <div id="tree-view" class="tree-view">
+                <!-- Tree content will be populated here -->
+            </div>
+
+            <div id="card-view" class="card-view hidden">
+                <!-- Card content will be populated here -->
+            </div>
+
+            <div id="table-view" class="table-view hidden">
+                <table class="task-table">
+                    <thead>
+                        <tr>
+                            <th>Task Name</th>
+                            <th>Categories</th>
+                            <th>Structured Logging</th>
+                            <th>Parent</th>
+                            <th>Children</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Table rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="log-view" class="table-view hidden">
+                <table class="task-table">
+                    <thead>
+                        <tr>
+                            <th>Task Name</th>
+                            <th>Status</th>
+                            <th>Total Runs</th>
+                            <th>Success Rate</th>
+                            <th>Last Run</th>
+                            <th>Last Duration</th>
+                            <th>Avg Duration</th>
+                            <th>Categories</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body">
+                        <!-- Log table rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer container -->
+    <div id="footerContainer"></div>
+
+    <script>
+        // Task Explorer JavaScript
+        let allTasks = [];
+        let filteredTasks = [];
+        let currentView = 'tree';
+
+        // Load task registry data
+        async function loadTaskData() {
+            try {
+                const response = await fetch('/api/task-explorer/data');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                allTasks = data.tasks || [];
+                
+                initializeExplorer();
+                updateStatistics();
+                populateFilters();
+                applyFilters();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-container').style.display = 'none';
+                document.getElementById('explorer-content').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading task data:', error);
+                displayError(`Failed to load task data: ${error.message}`);
+            }
+        }
+
+        // Display error message
+        function displayError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `<div class="error">${message}</div>`;
+            errorContainer.style.display = 'block';
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('explorer-content').style.display = 'none';
+        }
+
+        // Initialize explorer
+        function initializeExplorer() {
+            // Set up view toggle buttons
+            document.getElementById('tree-view-btn').addEventListener('click', () => switchView('tree'));
+            document.getElementById('card-view-btn').addEventListener('click', () => switchView('card'));
+            document.getElementById('table-view-btn').addEventListener('click', () => switchView('table'));
+            document.getElementById('log-view-btn').addEventListener('click', () => switchView('log'));
+
+            // Set up filters
+            document.getElementById('category-filter').addEventListener('change', applyFilters);
+            document.getElementById('structured-filter').addEventListener('change', applyFilters);
+            document.getElementById('execution-filter').addEventListener('change', applyFilters);
+            document.getElementById('search-input').addEventListener('input', applyFilters);
+        }
+
+        // Update statistics
+        function updateStatistics() {
+            const totalTasks = allTasks.length;
+            const structuredTasks = allTasks.filter(task => task.structuredLogging).length;
+            const orchestratorTasks = allTasks.filter(task => 
+                task.categories && task.categories.includes('orchestrator')).length;
+            const customerTasks = allTasks.filter(task => 
+                task.categories && task.categories.includes('customer')).length;
+            const ownerTasks = allTasks.filter(task => 
+                task.categories && task.categories.includes('owner')).length;
+            const rootTasks = allTasks.filter(task => !task.parent).length;
+            const runningTasks = allTasks.filter(task => task.execution && task.execution.isRunning).length;
+            const executionDataTasks = allTasks.filter(task => task.execution && task.execution.hasExecutionData).length;
+            const neverRunTasks = allTasks.filter(task => task.execution && !task.execution.hasExecutionData && !task.execution.isRunning).length;
+
+            document.getElementById('total-tasks').textContent = totalTasks;
+            document.getElementById('structured-tasks').textContent = structuredTasks;
+            document.getElementById('orchestrator-tasks').textContent = orchestratorTasks;
+            document.getElementById('customer-tasks').textContent = customerTasks;
+            document.getElementById('owner-tasks').textContent = ownerTasks;
+            document.getElementById('root-tasks').textContent = rootTasks;
+            document.getElementById('running-tasks').textContent = runningTasks;
+            document.getElementById('execution-data-tasks').textContent = executionDataTasks;
+            document.getElementById('never-run-tasks').textContent = neverRunTasks;
+        }
+
+        // Populate filter options
+        function populateFilters() {
+            const categoryFilter = document.getElementById('category-filter');
+            const categories = new Set();
+            
+            allTasks.forEach(task => {
+                if (task.categories) {
+                    task.categories.forEach(cat => categories.add(cat));
+                }
+            });
+
+            Array.from(categories).sort().forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        // Apply filters
+        function applyFilters() {
+            const categoryFilter = document.getElementById('category-filter').value;
+            const structuredFilter = document.getElementById('structured-filter').value;
+            const executionFilter = document.getElementById('execution-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            filteredTasks = allTasks.filter(task => {
+                // Category filter
+                if (categoryFilter && (!task.categories || !task.categories.includes(categoryFilter))) {
+                    return false;
+                }
+
+                // Structured logging filter
+                if (structuredFilter !== '') {
+                    const hasStructured = task.structuredLogging === true;
+                    if (structuredFilter === 'true' && !hasStructured) return false;
+                    if (structuredFilter === 'false' && hasStructured) return false;
+                }
+
+                // Execution status filter
+                if (executionFilter !== '') {
+                    const exec = task.execution;
+                    switch (executionFilter) {
+                        case 'running':
+                            if (!exec || !exec.isRunning) return false;
+                            break;
+                        case 'success':
+                            if (!exec || exec.lastStatus !== 'success') return false;
+                            break;
+                        case 'failed':
+                            if (!exec || exec.lastStatus !== 'failed') return false;
+                            break;
+                        case 'never-run':
+                            if (!exec || exec.hasExecutionData || exec.isRunning) return false;
+                            break;
+                        case 'has-data':
+                            if (!exec || !exec.hasExecutionData) return false;
+                            break;
+                    }
+                }
+
+                // Search filter
+                if (searchTerm) {
+                    const searchableText = [
+                        task.name,
+                        task.description,
+                        ...(task.categories || [])
+                    ].join(' ').toLowerCase();
+                    
+                    if (!searchableText.includes(searchTerm)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            updateCurrentView();
+        }
+
+        // Switch view
+        function switchView(view) {
+            // Update button states
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${view}-view-btn`).classList.add('active');
+
+            // Hide all views
+            document.getElementById('tree-view').classList.add('hidden');
+            document.getElementById('card-view').classList.add('hidden');
+            document.getElementById('table-view').classList.add('hidden');
+            document.getElementById('log-view').classList.add('hidden');
+
+            // Show selected view
+            document.getElementById(`${view}-view`).classList.remove('hidden');
+
+            currentView = view;
+            updateCurrentView();
+        }
+
+        // Update current view
+        function updateCurrentView() {
+            switch (currentView) {
+                case 'tree':
+                    updateTreeView();
+                    break;
+                case 'card':
+                    updateCardView();
+                    break;
+                case 'table':
+                    updateTableView();
+                    break;
+                case 'log':
+                    updateLogView();
+                    break;
+            }
+        }
+
+        // Update tree view
+        function updateTreeView() {
+            const treeContainer = document.getElementById('tree-view');
+            const rootTasks = filteredTasks.filter(task => !task.parent);
+            
+            treeContainer.innerHTML = '';
+            
+            if (rootTasks.length === 0) {
+                treeContainer.innerHTML = '<p>No tasks match the current filters.</p>';
+                return;
+            }
+
+            rootTasks.forEach(task => {
+                const treeNode = createTreeNode(task, 0);
+                treeContainer.appendChild(treeNode);
+            });
+        }
+
+        // Create tree node
+        function createTreeNode(task, depth) {
+            const node = document.createElement('div');
+            node.className = 'tree-node';
+
+            const item = document.createElement('div');
+            item.className = 'tree-item';
+            item.style.paddingLeft = `${depth * 1.5}rem`;
+
+            const children = filteredTasks.filter(t => t.parent === task.name);
+            const hasChildren = children.length > 0;
+
+            // Expand/collapse button for children
+            const expandBtn = document.createElement('div');
+            expandBtn.className = hasChildren ? 'tree-expand' : 'tree-expand empty';
+            expandBtn.textContent = hasChildren ? '▼' : '';
+            if (hasChildren) {
+                expandBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleTreeNode(node);
+                });
+            }
+
+            // Task header (compact view)
+            const taskHeader = document.createElement('div');
+            taskHeader.className = 'tree-task-header';
+
+            // Status indicator
+            const statusIndicator = document.createElement('div');
+            statusIndicator.className = `tree-status-indicator ${getTaskStatusClass(task)}`;
+
+            // Task name
+            const taskName = document.createElement('div');
+            taskName.className = `tree-task-name ${task.execution?.isRunning ? 'running' : ''}`;
+            taskName.textContent = task.name;
+
+            // Detail toggle button
+            const detailToggle = document.createElement('button');
+            detailToggle.className = 'tree-detail-toggle';
+            detailToggle.textContent = 'ⓘ';
+            detailToggle.title = 'Show/hide task details';
+            detailToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleTaskDetails(node, task);
+            });
+
+            taskHeader.appendChild(statusIndicator);
+            taskHeader.appendChild(taskName);
+            taskHeader.appendChild(detailToggle);
+
+            // Task details (initially hidden)
+            const taskDetails = document.createElement('div');
+            taskDetails.className = 'tree-task-details';
+            taskDetails.innerHTML = createTaskDetailsHTML(task);
+
+            item.appendChild(expandBtn);
+            item.appendChild(taskHeader);
+            node.appendChild(item);
+            node.appendChild(taskDetails);
+
+            // Add children
+            if (hasChildren) {
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = 'tree-children';
+                
+                children.forEach(child => {
+                    const childNode = createTreeNode(child, depth + 1);
+                    childrenContainer.appendChild(childNode);
+                });
+                
+                node.appendChild(childrenContainer);
+            }
+
+            return node;
+        }
+
+        // Get task status class for visual indicator
+        function getTaskStatusClass(task) {
+            if (!task.execution || !task.execution.hasExecutionData) {
+                return 'never-run';
+            }
+            if (task.execution.isRunning) {
+                return 'running';
+            }
+            if (task.execution.lastStatus === 'success') {
+                return 'success';
+            }
+            return 'failed';
+        }
+
+        // Toggle task details
+        function toggleTaskDetails(node, task) {
+            const detailsElement = node.querySelector('.tree-task-details');
+            const toggleButton = node.querySelector('.tree-detail-toggle');
+            
+            if (detailsElement.classList.contains('expanded')) {
+                detailsElement.classList.remove('expanded');
+                toggleButton.classList.remove('expanded');
+                toggleButton.textContent = 'ⓘ';
+            } else {
+                detailsElement.classList.add('expanded');
+                toggleButton.classList.add('expanded');
+                toggleButton.textContent = '✕';
+                // Refresh details content in case data has changed
+                detailsElement.innerHTML = createTaskDetailsHTML(task);
+            }
+        }
+
+        // Create detailed task HTML for expanded view
+        function createTaskDetailsHTML(task) {
+            let html = '';
+            
+            if (task.description) {
+                html += `<div class="task-description">${task.description}</div>`;
+            }
+
+            html += '<div class="task-meta">';
+            html += createCategoryBadges(task.categories);
+            html += createStructuredBadge(task.structuredLogging);
+            html += createExecutionBadges(task.execution);
+            html += '</div>';
+
+            // Add execution information if available
+            if (task.execution && task.execution.hasExecutionData) {
+                html += createExecutionInfo(task.execution);
+            }
+
+            // Add relationships
+            const children = filteredTasks.filter(t => t.parent === task.name);
+            if (task.parent || children.length > 0) {
+                html += '<div class="task-relationships">';
+                if (task.parent) {
+                    html += `Parent: <span class="relationship-link">${task.parent}</span><br>`;
+                }
+                if (children.length > 0) {
+                    html += `Children: ${children.map(c => `<span class="relationship-link">${c.name}</span>`).join(', ')}`;
+                }
+                html += '</div>';
+            }
+
+            // Add task actions (Run Task button)
+            html += createTaskActions(task);
+
+            return html;
+        }
+
+        // Toggle tree node
+        function toggleTreeNode(node) {
+            const children = node.querySelector('.tree-children');
+            const expandBtn = node.querySelector('.tree-expand');
+            
+            if (children) {
+                children.classList.toggle('collapsed');
+                expandBtn.textContent = children.classList.contains('collapsed') ? '▶' : '▼';
+            }
+        }
+
+        // Update card view
+        function updateCardView() {
+            const cardContainer = document.getElementById('card-view');
+            cardContainer.innerHTML = '';
+
+            if (filteredTasks.length === 0) {
+                cardContainer.innerHTML = '<p>No tasks match the current filters.</p>';
+                return;
+            }
+
+            filteredTasks.forEach(task => {
+                const card = document.createElement('div');
+                card.className = 'task-card';
+                card.innerHTML = createTaskHTML(task, 'card');
+                cardContainer.appendChild(card);
+            });
+        }
+
+        // Update table view
+        function updateTableView() {
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = '';
+
+            if (filteredTasks.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 6;
+                cell.textContent = 'No tasks match the current filters.';
+                cell.style.textAlign = 'center';
+                cell.style.padding = '2rem';
+                return;
+            }
+
+            filteredTasks.forEach(task => {
+                const row = tableBody.insertRow();
+                
+                // Task name
+                const nameCell = row.insertCell();
+                nameCell.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <strong><a href="/task.html?taskName=${encodeURIComponent(task.name)}" class="task-name-link" title="View detailed execution history">${task.name}</a></strong>
+                        <a href="/task.html?taskName=${encodeURIComponent(task.name)}" class="table-details-link" title="View details">
+                            📊
+                        </a>
+                    </div>
+                `;
+                
+                // Categories
+                const categoriesCell = row.insertCell();
+                categoriesCell.innerHTML = createCategoryBadges(task.categories);
+                
+                // Structured logging
+                const structuredCell = row.insertCell();
+                structuredCell.innerHTML = createStructuredBadge(task.structuredLogging);
+                
+                // Parent
+                const parentCell = row.insertCell();
+                parentCell.textContent = task.parent || '-';
+                
+                // Children
+                const childrenCell = row.insertCell();
+                const childCount = filteredTasks.filter(t => t.parent === task.name).length;
+                childrenCell.textContent = childCount > 0 ? `${childCount} children` : '-';
+                
+                // Description
+                const descCell = row.insertCell();
+                descCell.textContent = task.description || '-';
+                descCell.style.maxWidth = '200px';
+                descCell.style.overflow = 'hidden';
+                descCell.style.textOverflow = 'ellipsis';
+                descCell.style.whiteSpace = 'nowrap';
+            });
+        }
+
+        // Update log data view
+        function updateLogView() {
+            const logTableBody = document.getElementById('log-table-body');
+            logTableBody.innerHTML = '';
+
+            if (filteredTasks.length === 0) {
+                const row = logTableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 8;
+                cell.textContent = 'No tasks match the current filters.';
+                cell.style.textAlign = 'center';
+                cell.style.padding = '2rem';
+                return;
+            }
+
+            // Sort tasks by execution data relevance (running first, then by last run time)
+            const sortedTasks = [...filteredTasks].sort((a, b) => {
+                // Running tasks first
+                if (a.execution?.isRunning && !b.execution?.isRunning) return -1;
+                if (!a.execution?.isRunning && b.execution?.isRunning) return 1;
+                
+                // Then by last run time (most recent first)
+                if (a.execution?.lastRun && b.execution?.lastRun) {
+                    return new Date(b.execution.lastRun) - new Date(a.execution.lastRun);
+                }
+                if (a.execution?.lastRun && !b.execution?.lastRun) return -1;
+                if (!a.execution?.lastRun && b.execution?.lastRun) return 1;
+                
+                // Finally by name
+                return a.name.localeCompare(b.name);
+            });
+
+            sortedTasks.forEach(task => {
+                const row = logTableBody.insertRow();
+                const exec = task.execution;
+                
+                // Task name
+                const nameCell = row.insertCell();
+                nameCell.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <strong><a href="/task.html?taskName=${encodeURIComponent(task.name)}" class="task-name-link" title="View detailed execution history">${task.name}</a></strong>
+                        <a href="/task.html?taskName=${encodeURIComponent(task.name)}" class="table-details-link" title="View details">
+                            📊
+                        </a>
+                    </div>
+                `;
+                
+                // Status
+                const statusCell = row.insertCell();
+                statusCell.innerHTML = createExecutionBadges(exec);
+                
+                // Total runs
+                const runsCell = row.insertCell();
+                runsCell.textContent = exec?.totalRuns || '0';
+                runsCell.style.textAlign = 'center';
+                
+                // Success rate
+                const successCell = row.insertCell();
+                if (exec?.totalRuns > 0) {
+                    const rate = parseFloat(exec.successRate);
+                    successCell.textContent = `${exec.successRate}%`;
+                    successCell.style.textAlign = 'center';
+                    // Color code success rate
+                    if (rate >= 90) {
+                        successCell.style.color = '#2e7d32';
+                        successCell.style.fontWeight = 'bold';
+                    } else if (rate >= 70) {
+                        successCell.style.color = '#f57c00';
+                    } else {
+                        successCell.style.color = '#c62828';
+                        successCell.style.fontWeight = 'bold';
+                    }
+                } else {
+                    successCell.textContent = '-';
+                    successCell.style.textAlign = 'center';
+                }
+                
+                // Last run
+                const lastRunCell = row.insertCell();
+                lastRunCell.textContent = exec?.timeSinceLastRun || 'Never';
+                lastRunCell.style.textAlign = 'center';
+                if (exec?.timeSinceLastRun) {
+                    lastRunCell.title = exec.lastRunFormatted;
+                }
+                
+                // Last duration
+                const lastDurationCell = row.insertCell();
+                lastDurationCell.textContent = exec?.lastDurationFormatted || '-';
+                lastDurationCell.style.textAlign = 'center';
+                
+                // Average duration
+                const avgDurationCell = row.insertCell();
+                avgDurationCell.textContent = exec?.averageDurationFormatted || '-';
+                avgDurationCell.style.textAlign = 'center';
+                
+                // Categories
+                const categoriesCell = row.insertCell();
+                categoriesCell.innerHTML = createCategoryBadges(task.categories);
+            });
+        }
+
+        // Create task HTML
+        function createTaskHTML(task, viewType) {
+            const children = filteredTasks.filter(t => t.parent === task.name);
+            
+            let html = `<div class="task-name">${task.name}</div>`;
+            
+            if (task.description) {
+                html += `<div class="task-description">${task.description}</div>`;
+            }
+
+            html += '<div class="task-meta">';
+            html += createCategoryBadges(task.categories);
+            html += createStructuredBadge(task.structuredLogging);
+            html += createExecutionBadges(task.execution);
+            html += '</div>';
+
+            // Add execution information if available
+            if (task.execution && (task.execution.hasExecutionData || task.execution.isRunning)) {
+                html += createExecutionInfo(task.execution);
+            }
+
+            if (viewType !== 'tree' && (task.parent || children.length > 0)) {
+                html += '<div class="task-relationships">';
+                if (task.parent) {
+                    html += `Parent: <span class="relationship-link">${task.parent}</span><br>`;
+                }
+                if (children.length > 0) {
+                    html += `Children: ${children.map(c => `<span class="relationship-link">${c.name}</span>`).join(', ')}`;
+                }
+                html += '</div>';
+            }
+
+            // Add task actions (Run Task button)
+            if (viewType === 'card') {
+                html += createTaskActions(task);
+            }
+
+            return html;
+        }
+
+        // Create category badges
+        function createCategoryBadges(categories) {
+            if (!categories || categories.length === 0) return '';
+            
+            return categories.map(cat => 
+                `<span class="task-badge badge-category">${cat}</span>`
+            ).join('');
+        }
+
+        // Create structured logging badge
+        function createStructuredBadge(hasStructured) {
+            if (hasStructured) {
+                return '<span class="task-badge badge-structured">Structured Logging</span>';
+            } else {
+                return '<span class="task-badge badge-no-structured">No Structured Logging</span>';
+            }
+        }
+
+        // Create execution status badges
+        function createExecutionBadges(execution) {
+            if (!execution) return '';
+            
+            let badges = '';
+            
+            if (execution.isRunning) {
+                let runningText = '🔄 Running';
+                if (execution.timeSinceLastInitiatedFormatted) {
+                    runningText += `<br><small style="font-size: 0.8em; opacity: 0.8;">${execution.timeSinceLastInitiatedFormatted}</small>`;
+                }
+                badges += `<span class="task-badge badge-running">${runningText}</span>`;
+            } else if (execution.hasExecutionData) {
+                if (execution.lastStatus === 'success') {
+                    badges += '<span class="task-badge badge-success">✅ Last: Success</span>';
+                } else if (execution.lastStatus === 'failed') {
+                    // Show different status for caught vs uncaught errors
+                    if (execution?.errorType === 'caught') {
+                        badges += `<span class="badge badge-failed" title="Error was caught and reported">❌ Failed (Caught)</span>`;
+                    } else if (execution?.errorType === 'uncaught') {
+                        if (execution?.timeoutSuspected) {
+                            badges += `<span class="badge badge-failed-timeout" title="Task likely terminated due to timeout after long-running child task">⏰ Failed (Timeout)</span>`;
+                        } else {
+                            badges += `<span class="badge badge-failed-uncaught" title="Task failed silently without error reporting">💥 Failed (Silent)</span>`;
+                        }
+                    } else {
+                        badges += `<span class="badge badge-failed">❌ Failed</span>`;
+                    }
+                }
+            } else {
+                badges += '<span class="task-badge badge-never-run">⚪ Never Run</span>';
+            }
+            
+            return badges;
+        }
+
+        // Create execution information panel
+        function createExecutionInfo(execution) {
+            if (!execution || (!execution.hasExecutionData && !execution.isRunning)) {
+                return '';
+            }
+            
+            let html = '<div class="task-execution">';
+            
+            if (execution.isRunning) {
+                html += '<div class="execution-row">';
+                html += '<span class="execution-label">Status:</span>';
+                html += '<span class="execution-value">🔄 Currently Running</span>';
+                html += '</div>';
+            }
+            
+            if (execution.hasExecutionData) {
+                html += '<div class="execution-row">';
+                html += '<span class="execution-label">Total Runs:</span>';
+                html += `<span class="execution-value">${execution.totalRuns}</span>`;
+                html += '</div>';
+                
+                if (execution.totalRuns > 0) {
+                    html += '<div class="execution-row">';
+                    html += '<span class="execution-label">Success Rate:</span>';
+                    html += `<span class="execution-value">${execution.successRate}%</span>`;
+                    html += '</div>';
+                }
+                
+                if (execution.lastRunFormatted) {
+                    html += '<div class="execution-row">';
+                    html += '<span class="execution-label">Last Run:</span>';
+                    html += `<span class="execution-value">${execution.timeSinceLastRun}</span>`;
+                    html += '</div>';
+                }
+                
+                if (execution.lastDurationFormatted) {
+                    html += '<div class="execution-row">';
+                    html += '<span class="execution-label">Last Duration:</span>';
+                    html += `<span class="execution-value">${execution.lastDurationFormatted}</span>`;
+                    html += '</div>';
+                }
+                
+                if (execution.averageDurationFormatted) {
+                    html += '<div class="execution-row">';
+                    html += '<span class="execution-label">Avg Duration:</span>';
+                    html += `<span class="execution-value">${execution.averageDurationFormatted}</span>`;
+                    html += '</div>';
+                }
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        // Create task actions (Run Task button)
+        function createTaskActions(task) {
+            const isRunning = task.execution?.isRunning || false;
+            const requiresCustomer = task.categories.includes('customer');
+            
+            let html = '<div class="task-actions">';
+            
+            // View Details link
+            html += `<a href="/task.html?taskName=${encodeURIComponent(task.name)}" class="task-details-link" title="View detailed execution history">`;
+            html += '📊 View Details';
+            html += '</a>';
+            
+            // Run Task button
+            const buttonText = isRunning ? '🔄 Running...' : '▶️ Run Task';
+            const buttonClass = isRunning ? 'run-task-btn running' : 'run-task-btn';
+            const disabled = isRunning ? 'disabled' : '';
+            
+            html += `<button class="${buttonClass}" onclick="handleRunTask('${task.name}', ${requiresCustomer})" ${disabled}>`;
+            html += buttonText;
+            html += '</button>';
+            
+            // Customer required badge
+            if (requiresCustomer) {
+                html += '<span class="customer-required-badge">Customer Required</span>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        // Handle run task button click
+        async function handleRunTask(taskName, requiresCustomer) {
+            if (requiresCustomer) {
+                // Show customer selector modal
+                await showCustomerSelector(taskName);
+            } else {
+                // Run system task directly
+                await executeTask(taskName);
+            }
+        }
+
+        // Show customer selector modal
+        async function showCustomerSelector(taskName) {
+            // Create modal HTML
+            const modalHTML = `
+                <div class="modal-overlay" id="customer-modal">
+                    <div class="modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Select Customer</div>
+                            <div class="modal-subtitle">Choose a customer to run task: <strong>${taskName}</strong></div>
+                        </div>
+                        
+                        <div class="customer-search">
+                            <input type="text" id="customer-search-input" placeholder="Search customers by name or pubkey..." />
+                        </div>
+                        
+                        <div class="customer-list" id="customer-list">
+                            <div style="padding: 2rem; text-align: center; color: #666;">Loading customers...</div>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button class="modal-btn modal-btn-secondary" onclick="closeCustomerModal()">Cancel</button>
+                            <button class="modal-btn modal-btn-primary" id="run-with-customer-btn" onclick="runTaskWithCustomer('${taskName}')" disabled>Run Task</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Load customers
+            await loadCustomers();
+            
+            // Setup search functionality
+            setupCustomerSearch();
+        }
+
+        // Load customers for selector
+        async function loadCustomers() {
+            try {
+                const response = await fetch('/api/get-customers');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const customers = data.customers || [];
+                
+                const customerList = document.getElementById('customer-list');
+                
+                if (customers.length === 0) {
+                    customerList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">No customers found</div>';
+                    return;
+                }
+                
+                // Render customer list
+                customerList.innerHTML = customers.map(customer => `
+                    <div class="customer-item" data-pubkey="${customer.pubkey}" data-name="${customer.customerName || 'Unknown'}" onclick="selectCustomer(this)">
+                        <div class="customer-name">${customer.name || 'Unknown Customer'}</div>
+                        <div class="customer-pubkey">${customer.pubkey}</div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading customers:', error);
+                const customerList = document.getElementById('customer-list');
+                customerList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #dc3545;">Error loading customers</div>';
+            }
+        }
+
+        // Setup customer search functionality
+        function setupCustomerSearch() {
+            const searchInput = document.getElementById('customer-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const customerItems = document.querySelectorAll('.customer-item');
+                
+                customerItems.forEach(item => {
+                    const name = item.dataset.name.toLowerCase();
+                    const pubkey = item.dataset.pubkey.toLowerCase();
+                    const matches = name.includes(query) || pubkey.includes(query);
+                    item.style.display = matches ? 'block' : 'none';
+                });
+            });
+        }
+
+        // Select customer in modal
+        function selectCustomer(element) {
+            // Remove previous selection
+            document.querySelectorAll('.customer-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Select current item
+            element.classList.add('selected');
+            
+            // Enable run button
+            document.getElementById('run-with-customer-btn').disabled = false;
+        }
+
+        // Run task with selected customer
+        async function runTaskWithCustomer(taskName) {
+            const selectedCustomer = document.querySelector('.customer-item.selected');
+            if (!selectedCustomer) {
+                alert('Please select a customer');
+                return;
+            }
+            
+            const pubkey = selectedCustomer.dataset.pubkey;
+            const customerName = selectedCustomer.dataset.name;
+            
+            // Close customer modal
+            closeCustomerModal();
+            
+            // Execute task with customer
+            await executeTask(taskName, { pubkey, customerName });
+        }
+
+        // Close customer selector modal
+        function closeCustomerModal() {
+            const modal = document.getElementById('customer-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // Execute task
+        async function executeTask(taskName, customerData = null) {
+            // Build API URL
+            let apiUrl = `/api/run-task?taskName=${encodeURIComponent(taskName)}`;
+            if (customerData) {
+                apiUrl += `&pubkey=${encodeURIComponent(customerData.pubkey)}`;
+                if (customerData.customerName && customerData.customerName !== 'Unknown') {
+                    apiUrl += `&customerName=${encodeURIComponent(customerData.customerName)}`;
+                }
+            }
+            
+            // Show execution modal
+            showExecutionModal(taskName, customerData);
+            
+            try {
+                const response = await fetch(apiUrl, { method: 'POST' });
+                const result = await response.json();
+                
+                // Update execution modal with results
+                updateExecutionModal(result);
+                
+                // Refresh task data to show updated execution status
+                setTimeout(() => {
+                    loadTaskData();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error executing task:', error);
+                updateExecutionModal({
+                    success: false,
+                    message: `Error executing task: ${error.message}`,
+                    execution: {
+                        stdout: '',
+                        stderr: error.message,
+                        exitCode: -1
+                    }
+                });
+            }
+        }
+
+        // Show execution modal
+        function showExecutionModal(taskName, customerData) {
+            const customerInfo = customerData ? 
+                `<div><strong>Customer:</strong> ${customerData.customerName} (${customerData.pubkey.substring(0, 16)}...)</div>` : 
+                '';
+            
+            const modalHTML = `
+                <div class="modal-overlay" id="execution-modal">
+                    <div class="modal execution-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Task Execution: ${taskName}</div>
+                            ${customerInfo}
+                        </div>
+                        
+                        <div class="execution-status running" id="execution-status">
+                            <span>🔄</span>
+                            <span>Task is running...</span>
+                        </div>
+                        
+                        <div class="execution-output" id="execution-output">
+                            Initializing task execution...
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button class="modal-btn modal-btn-secondary" onclick="closeExecutionModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        // Update execution modal with results
+        function updateExecutionModal(result) {
+            const statusElement = document.getElementById('execution-status');
+            const outputElement = document.getElementById('execution-output');
+            
+            if (!statusElement || !outputElement) return;
+            
+            // Update status
+            statusElement.className = `execution-status ${result.success ? 'success' : 'error'}`;
+            statusElement.innerHTML = `
+                <span>${result.success ? '✅' : '❌'}</span>
+                <span>${result.message || (result.success ? 'Task completed successfully' : 'Task failed')}</span>
+            `;
+            
+            // Update output
+            let output = '';
+            if (result.execution) {
+                // Handle async tasks differently
+                if (result.execution.async) {
+                    output += `Status: ${result.execution.status || 'Running'}\n\n`;
+                    if (result.execution.statusMessage) {
+                        output += `${result.execution.statusMessage}\n\n`;
+                    }
+                    if (result.execution.pid) {
+                        output += `Process ID: ${result.execution.pid}\n`;
+                    }
+                    if (result.execution.estimatedDuration) {
+                        output += `Estimated Duration: ${result.execution.estimatedDuration}\n`;
+                    }
+                } else {
+                    // Handle sync tasks with traditional output
+                    if (result.execution.stdout) {
+                        output += `STDOUT:\n${result.execution.stdout}\n\n`;
+                    }
+                    if (result.execution.stderr) {
+                        output += `STDERR:\n${result.execution.stderr}\n\n`;
+                    }
+                    if (result.execution.exitCode !== null && result.execution.exitCode !== undefined) {
+                        output += `Exit Code: ${result.execution.exitCode}`;
+                    }
+                }
+            } else {
+                output = result.message || 'No execution details available';
+            }
+            
+            outputElement.textContent = output;
+        }
+
+        // Close execution modal
+        function closeExecutionModal() {
+            const modal = document.getElementById('execution-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load header
+            try {
+                const headerResponse = await fetch('/components/header/header.html');
+                if (headerResponse.ok) {
+                    const headerHTML = await headerResponse.text();
+                    document.getElementById('header-placeholder').innerHTML = headerHTML;
+                    
+                    // Load header script
+                    const script = document.createElement('script');
+                    script.src = '/components/header/header.js';
+                    document.head.appendChild(script);
+                }
+            } catch (error) {
+                console.error('Error loading header:', error);
+            }
+
+            // Load task data
+            await loadTaskData();
+        });
+    </script>
+</body>
+</html>

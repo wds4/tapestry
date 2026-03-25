@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainstorm</title>
+    <link rel="stylesheet" href="/control/css/whitelist-control-panel.css">
+    <script src="./components/header/header.js"></script>
+    <link rel="shortcut icon" href="/control/img/brainstorm010.svg">
+</head>
+<body>
+    <!-- Include the header component -->
+    <div id="headerContainer"></div>
+
+    <div class="container">
+        <div class="nav">
+            <h1>Personalized Whitelist Control Panel</h1>
+        </div>
+
+        <div class="section">
+            <h2>Whitelist Configuration</h2>
+            <div class="card">
+                <div class="whitelist-stats">
+                    <h3>Whitelist Statistics</h3>
+                    <p>Currently whitelisted pubkeys: <span id="whitelistedCount" class="whitelist-count">0</span></p>
+                    <div id="lastCalculated" class="last-calculated">Last calculated: Never</div>
+                </div>
+                
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" onclick="openTab(event, 'liveParams')">Live Parameters</button>
+                        <button class="tab-button" onclick="openTab(event, 'presets')">Presets</button>
+                        <button class="tab-button" onclick="openTab(event, 'algorithm')">Algorithm Info</button>
+                    </div>
+                    
+                    <div id="liveParams" class="tab-content active">
+                        <div class="preset-buttons">
+                            <button id="loadLaxBtn" class="button preset-btn">Load Lax Preset</button>
+                            <button id="loadDefaultBtn" class="button preset-btn">Load Default Preset</button>
+                            <button id="loadStrictBtn" class="button preset-btn">Load Strict Preset</button>
+                        </div>
+                        
+                        <div class="parameter-group">
+                            <h3>Whitelist Thresholds</h3>
+                            <div class="form-group">
+                                <label for="INFLUENCE_CUTOFF">Influence Cutoff:</label>
+                                <input type="number" id="INFLUENCE_CUTOFF" step="0.01" min="0" max="1" placeholder="0.5">
+                                <small>Include any users with influence above this threshold (0.00 to 1.00).</small>
+                                <div class="threshold-info">Users with influence ≥ <span id="currentThreshold">0.5</span>: <span id="influenceUserCount">Loading...</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="COMBINATION_LOGIC">Combination Logic:</label>
+                                <select id="COMBINATION_LOGIC">
+                                    <option value="AND">AND</option>
+                                    <option value="OR">OR</option>
+                                </select>
+                                <small>How to combine INFLUENCE_CUTOFF and HOPS_CUTOFF ('AND' or 'OR').</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="HOPS_CUTOFF">Hops Cutoff:</label>
+                                <input type="number" id="HOPS_CUTOFF" step="1" min="0" max="10" placeholder="1">
+                                <small>Include users whose hops are less than or equal to this value (nonnegative integer).</small>
+                                <div class="threshold-info">Users with hops ≤ <span id="currentHopsThreshold">1</span>: <span id="hopsUserCount">Loading...</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="INCORPORATE_BLACKLIST">Incorporate Blacklist:</label>
+                                <select id="INCORPORATE_BLACKLIST">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <small>Exclude users in the blacklist from the whitelist (true or false).</small>
+                                <div class="threshold-info">Users on blacklist: <span id="blacklistUserCount">Loading...</span></div>
+                            </div>
+                        </div>
+                        
+                        <div class="whitelist-preview">
+                            <h4>Whitelist Preview</h4>
+                            <p>Users matching all criteria: <span id="previewCount" class="whitelist-count">Loading...</span></p>
+                        </div>
+                        
+                        <button id="saveConfigBtn" class="button">Save Configuration</button>
+                        <div id="configStatus" class="status"></div>
+                    </div>
+                    
+                    <div id="presets" class="tab-content">
+                        <div class="parameter-group">
+                            <h3>Lax Preset</h3>
+                            <p>A more permissive configuration that includes more users in the whitelist.</p>
+                            <pre id="laxPreset"></pre>
+                        </div>
+                        
+                        <div class="parameter-group">
+                            <h3>Default Preset</h3>
+                            <p>The standard balanced configuration.</p>
+                            <pre id="defaultPreset"></pre>
+                        </div>
+                        
+                        <div class="parameter-group">
+                            <h3>Strict Preset</h3>
+                            <p>A stricter configuration that more selectively includes users in the whitelist.</p>
+                            <pre id="strictPreset"></pre>
+                        </div>
+                    </div>
+                    
+                    <div id="algorithm" class="tab-content">
+                        <div class="parameter-group">
+                            <h3>Whitelist Algorithm Explanation</h3>
+                            <p>The personalized whitelist algorithm works as follows:</p>
+                            <ol>
+                                <li>For each NostrUser in the database, evaluate the following criteria:
+                                    <ul>
+                                        <li><strong>Influence Score</strong>: The GrapeRank influence score of the user</li>
+                                        <li><strong>Hops Distance</strong>: Number of follows between this user and the relay owner</li>
+                                    </ul>
+                                </li>
+                                <li>A user is whitelisted based on the COMBINATION_LOGIC:
+                                    <ul>
+                                        <li>If COMBINATION_LOGIC is "OR": The user's influence score is above INFLUENCE_CUTOFF <em>or</em> their hops distance is less than or equal to HOPS_CUTOFF</li>
+                                        <li>If COMBINATION_LOGIC is "AND": The user's influence score is above INFLUENCE_CUTOFF <em>and</em> their hops distance is less than or equal to HOPS_CUTOFF</li>
+                                    </ul>
+                                </li>
+                                <li>If INCORPORATE_BLACKLIST is true, any users in the blacklist are removed from the whitelist.</li>
+                                <li>The whitelist is saved to a JSON file used by the strfry plugin to filter content.</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Generate Whitelist</h3>
+                <p>Calculate personalized whitelist using the current configuration parameters.</p>
+                <button id="generateWhitelistBtn" class="button">Generate Whitelist</button>
+                <div id="generateWhitelistStatus" class="status">Generating whitelist...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const whitelistedCountEl = document.getElementById('whitelistedCount');
+        const lastCalculatedEl = document.getElementById('lastCalculated');
+        const configStatusEl = document.getElementById('configStatus');
+        const saveConfigBtn = document.getElementById('saveConfigBtn');
+        const generateWhitelistBtn = document.getElementById('generateWhitelistBtn');
+        const generateWhitelistStatus = document.getElementById('generateWhitelistStatus');
+        const loadLaxBtn = document.getElementById('loadLaxBtn');
+        const loadDefaultBtn = document.getElementById('loadDefaultBtn');
+        const loadStrictBtn = document.getElementById('loadStrictBtn');
+        
+        // Hide status elements initially
+        configStatusEl.style.display = 'none';
+        generateWhitelistStatus.style.display = 'none';
+        
+        // Preset data
+        const presets = {
+            lax: {
+                INFLUENCE_CUTOFF: 0.1,
+                COMBINATION_LOGIC: 'OR',
+                HOPS_CUTOFF: 2,
+                INCORPORATE_BLACKLIST: false
+            },
+            default: {
+                INFLUENCE_CUTOFF: 0.5,
+                COMBINATION_LOGIC: 'OR',
+                HOPS_CUTOFF: 1,
+                INCORPORATE_BLACKLIST: true
+            },
+            strict: {
+                INFLUENCE_CUTOFF: 0.9,
+                COMBINATION_LOGIC: 'AND',
+                HOPS_CUTOFF: 3,
+                INCORPORATE_BLACKLIST: true
+            }
+        };
+        
+        // Display preset values
+        document.getElementById('laxPreset').textContent = JSON.stringify(presets.lax, null, 2);
+        document.getElementById('defaultPreset').textContent = JSON.stringify(presets.default, null, 2);
+        document.getElementById('strictPreset').textContent = JSON.stringify(presets.strict, null, 2);
+        
+        // Load current configuration and whitelist stats
+        async function loadWhitelistConfig() {
+            try {
+                const response = await fetch('/control/api/get-whitelist-config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.config;
+                    
+                    // Set form values
+                    document.getElementById('INFLUENCE_CUTOFF').value = config.INFLUENCE_CUTOFF;
+                    document.getElementById('COMBINATION_LOGIC').value = config.COMBINATION_LOGIC;
+                    document.getElementById('HOPS_CUTOFF').value = config.HOPS_CUTOFF;
+                    document.getElementById('INCORPORATE_BLACKLIST').value = config.INCORPORATE_BLACKLIST.toString();
+                    
+                    // Update influence count with the loaded cutoff value
+                    loadInfluenceCount(parseFloat(config.INFLUENCE_CUTOFF));
+                    
+                    // Update hops count with the loaded cutoff value
+                    loadHopsCount(parseInt(config.HOPS_CUTOFF, 10));
+                    
+                    // Update last calculated time
+                    if (config.WHEN_LAST_CALCULATED && config.WHEN_LAST_CALCULATED != '0') {
+                        const date = new Date(parseInt(config.WHEN_LAST_CALCULATED) * 1000);
+                        lastCalculatedEl.textContent = `Last calculated: ${date.toLocaleString()}`;
+                    }
+                    
+                    // Update whitelisted count if available
+                    if (data.whitelistedCount !== undefined) {
+                        whitelistedCountEl.textContent = data.whitelistedCount;
+                    }
+                } else {
+                    showStatus(configStatusEl, 'Error loading configuration: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus(configStatusEl, 'Error loading configuration: ' + error, 'error');
+            }
+            
+            // Load whitelist stats
+            loadWhitelistStats();
+        }
+        
+        // Load whitelist statistics
+        async function loadWhitelistStats() {
+            try {
+                const response = await fetch('/control/api/whitelist-stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    whitelistedCountEl.textContent = data.count;
+                    
+                    if (data.lastModified) {
+                        const date = new Date(data.lastModified);
+                        lastCalculatedEl.textContent = `Last calculated: ${date.toLocaleString()}`;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading whitelist stats:', error);
+            }
+        }
+        
+        // Load user count for current influence threshold
+        async function loadInfluenceCount(threshold) {
+            try {
+                const response = await fetch(`/control/api/influence-count?threshold=${threshold}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('influenceUserCount').textContent = data.count;
+                    document.getElementById('currentThreshold').textContent = threshold;
+                } else {
+                    document.getElementById('influenceUserCount').textContent = 'Error loading count';
+                }
+            } catch (error) {
+                console.error('Error loading influence count:', error);
+                document.getElementById('influenceUserCount').textContent = 'Error loading count';
+            }
+        }
+
+        // Load user count for current hops threshold
+        async function loadHopsCount(threshold) {
+            try {
+                const response = await fetch(`/control/api/hops-count?threshold=${threshold}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('hopsUserCount').textContent = data.count;
+                    document.getElementById('currentHopsThreshold').textContent = threshold;
+                } else {
+                    document.getElementById('hopsUserCount').textContent = 'Error loading count';
+                }
+            } catch (error) {
+                console.error('Error loading hops count:', error);
+                document.getElementById('hopsUserCount').textContent = 'Error loading count';
+            }
+        }
+        
+        // Load blacklist count
+        async function loadBlacklistCount() {
+            try {
+                const response = await fetch(`/control/api/blacklist-count`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('blacklistUserCount').textContent = data.count;
+                } else {
+                    document.getElementById('blacklistUserCount').textContent = 'Error loading count';
+                }
+            } catch (error) {
+                console.error('Error loading blacklist count:', error);
+                document.getElementById('blacklistUserCount').textContent = 'Error loading count';
+            }
+        }
+        
+        // Load preview count with all current parameters
+        async function loadPreviewCount() {
+            try {
+                // Get current values from form
+                const influence = parseFloat(document.getElementById('INFLUENCE_CUTOFF').value) || 0.5;
+                const hops = parseInt(document.getElementById('HOPS_CUTOFF').value, 10) || 1;
+                const logic = document.getElementById('COMBINATION_LOGIC').value;
+                const blacklist = document.getElementById('INCORPORATE_BLACKLIST').value;
+                
+                // Construct the query URL with all parameters
+                const url = `/control/api/whitelist-preview-count?influence=${influence}&hops=${hops}&logic=${logic}&blacklist=${blacklist}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('previewCount').textContent = data.count;
+                } else {
+                    document.getElementById('previewCount').textContent = 'Error loading count';
+                }
+            } catch (error) {
+                console.error('Error loading preview count:', error);
+                document.getElementById('previewCount').textContent = 'Error loading count';
+            }
+        }
+
+        // Update threshold when the input changes
+        document.getElementById('INFLUENCE_CUTOFF').addEventListener('input', function() {
+            const threshold = parseFloat(this.value) || 0;
+            loadInfluenceCount(threshold);
+            loadPreviewCount();
+        });
+        
+        // Update hops threshold when the input changes
+        document.getElementById('HOPS_CUTOFF').addEventListener('input', function() {
+            const threshold = parseInt(this.value, 10) || 0;
+            loadHopsCount(threshold);
+            loadPreviewCount();
+        });
+        
+        // Update preview when combination logic changes
+        document.getElementById('COMBINATION_LOGIC').addEventListener('change', function() {
+            loadPreviewCount();
+        });
+        
+        // Update preview when blacklist incorporation changes
+        document.getElementById('INCORPORATE_BLACKLIST').addEventListener('change', function() {
+            loadPreviewCount();
+        });
+        
+        // Save configuration
+        saveConfigBtn.addEventListener('click', async function() {
+            const config = {
+                INFLUENCE_CUTOFF: parseFloat(document.getElementById('INFLUENCE_CUTOFF').value),
+                COMBINATION_LOGIC: document.getElementById('COMBINATION_LOGIC').value,
+                HOPS_CUTOFF: parseInt(document.getElementById('HOPS_CUTOFF').value),
+                INCORPORATE_BLACKLIST: document.getElementById('INCORPORATE_BLACKLIST').value === 'true'
+            };
+            
+            try {
+                saveConfigBtn.disabled = true;
+                showStatus(configStatusEl, 'Saving configuration...', 'info');
+                
+                const response = await fetch('/control/api/post-whitelist-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(configStatusEl, 'Configuration saved successfully!', 'success');
+                } else {
+                    showStatus(configStatusEl, 'Error saving configuration: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus(configStatusEl, 'Error saving configuration: ' + error, 'error');
+            } finally {
+                saveConfigBtn.disabled = false;
+            }
+        });
+        
+        // Apply preset to input fields
+        function applyPreset(preset) {
+            document.getElementById('INFLUENCE_CUTOFF').value = preset.INFLUENCE_CUTOFF;
+            document.getElementById('COMBINATION_LOGIC').value = preset.COMBINATION_LOGIC;
+            document.getElementById('HOPS_CUTOFF').value = preset.HOPS_CUTOFF;
+            document.getElementById('INCORPORATE_BLACKLIST').value = preset.INCORPORATE_BLACKLIST.toString();
+            
+            // Update counts when preset is applied
+            loadInfluenceCount(preset.INFLUENCE_CUTOFF);
+            loadHopsCount(preset.HOPS_CUTOFF);
+            loadPreviewCount();
+        }
+        
+        // Load preset buttons
+        loadLaxBtn.addEventListener('click', function() {
+            applyPreset(presets.lax);
+        });
+        
+        loadDefaultBtn.addEventListener('click', function() {
+            applyPreset(presets.default);
+        });
+        
+        loadStrictBtn.addEventListener('click', function() {
+            applyPreset(presets.strict);
+        });
+        
+        // Generate Whitelist
+        generateWhitelistBtn.addEventListener('click', function() {
+            generateWhitelistBtn.disabled = true;
+            generateWhitelistStatus.style.display = 'block';
+            generateWhitelistStatus.className = 'status info';
+            generateWhitelistStatus.textContent = 'Generating personalized whitelist. This may take a few minutes...';
+            
+            fetch('/control/api/export-whitelist', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    generateWhitelistStatus.className = 'status success';
+                    generateWhitelistStatus.textContent = 'Whitelist generated successfully!';
+                    
+                    // Reload stats after a delay
+                    setTimeout(() => {
+                        loadWhitelistStats();
+                    }, 2000);
+                } else {
+                    generateWhitelistStatus.className = 'status error';
+                    generateWhitelistStatus.textContent = 'Error generating whitelist: ' + data.error;
+                }
+            })
+            .catch(error => {
+                generateWhitelistStatus.className = 'status error';
+                generateWhitelistStatus.textContent = 'Error generating whitelist: ' + error;
+            })
+            .finally(() => {
+                generateWhitelistBtn.disabled = false;
+            });
+        });
+        
+        // Helper function to show status messages
+        function showStatus(element, message, type) {
+            element.textContent = message;
+            element.className = 'status ' + type;
+            element.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // Tab functionality
+        function openTab(evt, tabName) {
+            // Hide all tab content
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.getElementsByClassName('tab-button');
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove('active');
+            }
+            
+            // Show the selected tab content and mark the button as active
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+        
+        // Load configuration on page load
+        loadWhitelistConfig();
+        
+        // Load initial influence count with default threshold
+        loadInfluenceCount(0.5);
+        
+        // Load initial hops count with default threshold
+        loadHopsCount(1);
+        
+        // Load initial blacklist count
+        loadBlacklistCount();
+        
+        // Load initial preview count with PARAMETER PRESETS
+        loadPreviewCount();
+    </script>
+</body>
+</html>
